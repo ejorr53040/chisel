@@ -224,5 +224,30 @@ describe("generate", () => {
       expect(result.errors).toEqual([{ blockId: "f-run.v2", message: "src/a.py:2: error: nope" }]);
     });
   });
+
+  it("reads gcc diagnostics that use absolute paths, as CMake builds report them", async () => {
+    const outDir = tmp();
+    const cpp = "// @id c_cart\nclass Cart {\n  // @id f_total\n  int total() { return \"x\"; }\n};\n";
+    let seenRunDir = "";
+    const result = await run({
+      outDir,
+      arch: "module shop  @id m_shop\n  class Cart  @id c_cart\n    fn total() -> int  @id f_total\n",
+      runner: async (job) => {
+        seenRunDir = job.cwd;
+        return fakeAgent({ ok: true, errors: [] }, { "src/shop.cpp": cpp })(job);
+      },
+      verify: async (runDir) => [
+        {
+          message: [
+            "cmake --build build -j 8 failed:",
+            `In file included from ${runDir}/src/main.cpp:1:`,
+            `${runDir}/src/shop.cpp:4:24: error: cannot convert 'const char*' to 'int' in return`,
+            "gmake[2]: *** [CMakeFiles/shop.dir/build.make:76: CMakeFiles/shop.dir/src/shop.cpp.o] Error 1",
+          ].join("\n"),
+        },
+      ],
+    });
+    expect(result.errors).toEqual([{ blockId: "f_total", message: `${seenRunDir}/src/shop.cpp:4:24: error: cannot convert 'const char*' to 'int' in return` }]);
+  });
 });
 

@@ -48,6 +48,28 @@ export const GENERATORS: Partial<Record<Lang, LangSpec>> = {
     // cargo check still runs build scripts and proc macros from dependencies; see the README's trust note.
     tools: ["Bash(cargo check:*)", "Bash(cargo add:*)", "Bash(cargo metadata:*)"],
   },
+  cpp: {
+    label: "C++",
+    layout: [
+      "- A CMake project (cmake_minimum_required 3.24, C++20). The project name is the board name in snake_case.",
+      "- Each `module` becomes `include/<project>/<module>.hpp` (declarations) + `src/<module>.cpp` (definitions) in namespace `<project>::<module>`; a module nested in a module nests both the folders and the namespace.",
+      "- Build the modules as a library target `<project>_lib`. If the board has an `entry main`, add an executable whose `int main` lives in `src/app_main.cpp`.",
+      "- class → class with its declaration in the header and member definitions in the .cpp; field → private member with accessors only where other blocks need them; interface → abstract class of pure virtual methods with a virtual destructor.",
+      "- implements / inherits → public inheritance (override every pure virtual).",
+      "- type struct → struct; type enum → `enum class`; const → `inline constexpr` in the header.",
+      "- service → a client class whose connection settings come from environment variables (std::getenv).",
+      "- Library blocks become `FetchContent_Declare` + `FetchContent_MakeAvailable` dependencies (pick a well-known library unless an override names one; for an HTTP server default to cpp-httplib). Nothing may require a system package.",
+      "- entry http → a handler in the board's HTTP library; entry cli → argv parsing in main.",
+      "- Prefer RAII and value types; no raw new/delete.",
+    ].join("\n"),
+    verify: "`cmake -S . -B build` then `cmake --build build -j 8`",
+    checks: [
+      ["cmake", "-S", ".", "-B", "build"],
+      ["cmake", "--build", "build", "-j", "8"],
+    ],
+    // Configuring runs the project's CMake code and fetched dependencies; see the README's trust note.
+    tools: ["Bash(cmake -S:*)", "Bash(cmake --build:*)"],
+  },
 };
 
 // hasOwn, not `in`: a language like "__proto__" must not resolve to Object.prototype.
