@@ -35,3 +35,10 @@ body { background: var(--bg); color: var(--text); font-family: var(--font-body);
   .app { grid-template: "top" auto "palette" auto "canvas" 60vh "side" auto / 1fr; height: auto; }
   .palette { flex-direction: row; flex-wrap: wrap; }
 }
+
+.run { padding: var(--s4); max-height: 42%; display: flex; flex-direction: column; gap: var(--s2); min-height: 0; }
+.run-head { display: flex; align-items: center; gap: var(--s2); }
+.run-dir { overflow-wrap: anywhere; margin: 0; }
+.run-errors { margin: 0; padding-left: var(--s4); font-size: var(--t-xs); color: var(--err); overflow: auto; max-height: 8em; }
+.run pre { font-size: var(--t-xs); margin: 0; overflow: auto; }
+.run-log { flex: 1; min-height: 3em; color: var(--dim); }

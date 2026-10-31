@@ -11,6 +11,9 @@ import {
 } from "@xyflow/react";
 import { newId, type Block, type Board, type Edge, type FunctionBlock } from "../board";
 import { serialize, signatureText } from "../serialize";
+import type { GenerateResult } from "../generate";
+
+type Run = { running: boolean; progress: string[]; result?: GenerateResult };
 
 type BlockNode = Node<{ block: Block }, Block["kind"]>;
 
@@ -84,6 +87,8 @@ export function App() {
   const [edges, setEdges] = useState<Edge[]>([]);
   const [path, setPath] = useState("~/scaffold-boards/untitled.scaffold.json");
   const [status, setStatus] = useState<{ ok: boolean; msg: string } | null>(null);
+  const [lang, setLang] = useState<"python">("python");
+  const [run, setRun] = useState<Run | null>(null);
   const board = useMemo(() => fromNodes(nodes, name, edges), [nodes, name, edges]);
   const arch = useMemo(() => serialize(board).arch, [board]);
   const selected = nodes.find((n) => n.selected);
@@ -147,6 +152,39 @@ export function App() {
     setStatus(res.ok ? { ok: true, msg: `saved ${body.path} + .arch.md` } : { ok: false, msg: body.error });
   };
 
+  // Saves the board, then reads the server-sent events of the run as they arrive.
+  const runGenerate = async () => {
+    setRun({ running: true, progress: [] });
+    const failed = (message: string) =>
+      setRun((r) => ({ running: false, progress: r?.progress ?? [], result: { ok: false, runDir: "", files: [], errors: [{ message }] } }));
+    try {
+      const res = await fetch(`/api/generate?path=${encodeURIComponent(path)}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ board, lang }),
+      });
+      if (!res.ok) return failed((await res.json()).error);
+      const reader = res.body!.pipeThrough(new TextDecoderStream()).getReader();
+      let buffer = "";
+      for (;;) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += value;
+        const events = buffer.split("\n\n");
+        buffer = events.pop()!;
+        for (const ev of events) {
+          const kind = /^event: (\w+)/m.exec(ev)?.[1];
+          const data = JSON.parse(/^data: (.*)$/m.exec(ev)?.[1] ?? "null");
+          if (kind === "progress") setRun((r) => ({ running: true, progress: [...(r?.progress ?? []), data].slice(-200) }));
+          if (kind === "done") setRun((r) => ({ running: false, progress: r?.progress ?? [], result: data }));
+        }
+      }
+    } catch (e) {
+      failed((e as Error).message);
+    }
+    setRun((r) => (r?.running ? { ...r, running: false, result: r.result ?? { ok: false, runDir: "", files: [], errors: [{ message: "the run ended without a result" }] } } : r));
+  };
+
   return (
     <div className="app">
       <header className="topbar">
@@ -163,6 +201,12 @@ export function App() {
         </button>
         <button className="btn btn--sm btn--primary" onClick={save}>
           Save
+        </button>
+        <select aria-label="Target language" value={lang} onChange={(e) => setLang(e.target.value as "python")}>
+          <option value="python">Python</option>
+        </select>
+        <button className="btn btn--sm btn--primary" onClick={runGenerate} disabled={run?.running}>
+          {run?.running ? "Generating…" : "Generate"}
         </button>
         {status && (
           <span role="status" className={`chip ${status.ok ? "chip--ok" : "chip--err"}`}>
@@ -207,6 +251,7 @@ export function App() {
           <div className="label">Architecture file</div>
           <pre aria-label="Architecture file preview">{arch}</pre>
         </section>
+        {run && <RunPanel run={run} />}
       </aside>
     </div>
   );
@@ -242,5 +287,35 @@ function Inspector({ block, onChange }: { block: Block; onChange: (p: Partial<Fu
       )}
       <p className="meta">@id {block.id}</p>
     </div>
+  );
+}
+
+function RunPanel({ run }: { run: Run }) {
+  const r = run.result;
+  return (
+    <section className="glass run" aria-label="Generation run">
+      <div className="run-head">
+        <span className="label">Run</span>
+        {run.running && <span className="chip chip--accent">running</span>}
+        {r && <span className={`chip ${r.ok ? "chip--ok" : "chip--err"}`}>{r.ok ? "verified" : "failed"}</span>}
+      </div>
+      {r?.runDir && <p className="meta run-dir">{r.runDir}</p>}
+      {r && r.errors.length > 0 && (
+        <ul className="run-errors" aria-label="Errors">
+          {r.errors.map((e, i) => (
+            <li key={i}>
+              {e.blockId && <span className="chip chip--err">@id {e.blockId}</span>} {e.message}
+            </li>
+          ))}
+        </ul>
+      )}
+      {r && r.files.length > 0 && (
+        <details>
+          <summary className="meta">{r.files.length} files</summary>
+          <pre>{r.files.join("\n")}</pre>
+        </details>
+      )}
+      <pre className="run-log" aria-label="Progress">{run.progress.join("\n")}</pre>
+    </section>
   );
 }
