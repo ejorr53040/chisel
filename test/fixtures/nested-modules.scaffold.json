@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "name": "shop",
+  "blocks": [
+    { "id": "m_util", "kind": "module", "name": "util", "position": { "x": 600, "y": 0 } },
+    { "id": "m_db", "kind": "module", "name": "db", "parentId": "m_app", "position": { "x": 20, "y": 200 } },
+    { "id": "f_connect", "kind": "function", "name": "connect", "parentId": "m_db", "position": { "x": 10, "y": 30 },
+      "signature": "(url) -> Connection", "intent": "Opens a pooled connection.", "steps": [] },
+    { "id": "m_app", "kind": "module", "name": "app", "position": { "x": 0, "y": 0 } },
+    { "id": "f_main", "kind": "function", "name": "main", "parentId": "m_app", "position": { "x": 20, "y": 40 },
+      "signature": "", "intent": "Starts the shop server.", "steps": ["connect to the database", "serve forever"] },
+    { "id": "f_slug", "kind": "function", "name": "slugify", "parentId": "m_util", "position": { "x": 10, "y": 30 },
+      "signature": "(text) -> str", "intent": "Turns a title into a URL slug.", "steps": [] }
+  ],
+  "edges": []
+}

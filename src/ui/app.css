@@ -1,0 +1,37 @@
+:root { --sky-img: url("/sky-light.png"); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --sky-img: url("/sky-dark.png"); } }
+:root[data-theme="dark"] { --sky-img: url("/sky-dark.png"); }
+
+html, body, #root { height: 100%; margin: 0; }
+body { background: var(--bg); color: var(--text); font-family: var(--font-body); }
+
+.app {
+  height: 100%;
+  display: grid;
+  grid-template: "top top top" auto "palette canvas side" 1fr / 160px 1fr minmax(320px, 26vw);
+  gap: var(--s3);
+  padding: var(--s3);
+  box-sizing: border-box;
+  background: var(--sky-img) center top / cover no-repeat, var(--bg);
+}
+.topbar { grid-area: top; display: flex; align-items: center; gap: var(--s3); flex-wrap: wrap; }
+.topbar .path { flex: 1; min-width: 200px; }
+.palette { grid-area: palette; display: flex; flex-direction: column; gap: var(--s3); align-self: start; padding: var(--s4); }
+.canvas { grid-area: canvas; min-height: 0; border-radius: var(--r-card); overflow: hidden; background: var(--bg); border: 1px solid var(--border); }
+.side { grid-area: side; display: flex; flex-direction: column; gap: var(--s3); min-height: 0; }
+.inspector { padding: var(--s4); overflow: auto; }
+.preview { flex: 1; min-height: 0; padding: var(--s4); display: flex; flex-direction: column; }
+.preview pre { flex: 1; overflow: auto; margin: var(--s3) 0 0; font-size: var(--t-xs); white-space: pre; }
+
+.block { font-size: var(--t-xs); color: var(--text); border-radius: var(--r-card); box-sizing: border-box; }
+.block--fn { background: var(--surface); border: 1px solid var(--border-control); padding: 8px 12px; max-width: 280px; }
+.block--module { width: 100%; height: 100%; background: var(--wash); border: 1px dashed var(--fill); padding: 8px 12px; }
+.block.is-selected { outline: 2px solid var(--fill); outline-offset: 1px; }
+.block-title { font-family: var(--font-head); font-size: var(--t-sm); }
+.block-title .kw { color: var(--link); font-family: var(--font-mono); font-size: var(--t-xs); }
+.block-intent { color: var(--dim); margin-top: 4px; }
+
+@media (max-width: 900px) {
+  .app { grid-template: "top" auto "palette" auto "canvas" 60vh "side" auto / 1fr; height: auto; }
+  .palette { flex-direction: row; flex-wrap: wrap; }
+}
