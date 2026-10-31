@@ -46,6 +46,7 @@ Read ./${archFile}. It is indentation-based pseudocode:
 - Indentation is containment. Every block line ends with \`@id <id>\`.
 - Block keywords: module, class, interface, fn (loose signature), field (name: type), const (name: type = value), type <name> struct|enum (with \`members:\`), library <capability> (with optional per-language package lines like \`python: requests\`), service (with \`description:\`), entry main|http|cli <name> (with \`detail:\`, e.g. a route).
 - \`intent:\` and \`steps:\` say what a function must do; \`notes:\` on any block is guidance for you.
+- \`-> <kind> <target> (@id <id>)\` lines are relationships from the enclosing block to the target. Honour them: inherits/implements → subclassing or implementing the interface; imports → an import; uses → the block depends on the target; calls → the function calls the target; returns → its return type; emits/handles → producing or handling the target as an event. A quoted phrase in place of the kind is a free-form relationship.
 
 Write the project into the current directory and nowhere else.
 
