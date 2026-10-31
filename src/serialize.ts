@@ -1,4 +1,4 @@
-import { BLOCK_KINDS, LANGS, type Block, type Board, type Lang } from "./board";
+import { BLOCK_KINDS, EDGE_KINDS, LANGS, type Block, type Board, type Edge, type Lang } from "./board";
 
 export interface Warning {
   blockId?: string;
@@ -81,11 +81,31 @@ export function serialize(board: Board, _lang?: Lang): { arch: string; warnings:
         byCodePoint(a.id, b.id),
     );
 
+  const byId = new Map(board.blocks.map((b) => [b.id, b]));
+  const outgoing = new Map<string, Edge[]>();
+  for (const e of board.edges) outgoing.set(e.source, [...(outgoing.get(e.source) ?? []), e]);
+  const edgeLine = (e: Edge) => {
+    const target = byId.get(e.target)!;
+    const verb = e.kind === "other" && e.label?.trim() ? `"${oneLine(e.label).replaceAll('"', "'")}"` : e.kind;
+    return `-> ${verb} ${oneLine(target.name)} (@id ${target.id})  @edge ${e.id}`;
+  };
+  const edgesOf = (id: string) =>
+    (outgoing.get(id) ?? [])
+      .map((e) => ({ e, line: edgeLine(e) }))
+      .sort(
+        (a, b) =>
+          EDGE_KINDS.indexOf(a.e.kind) - EDGE_KINDS.indexOf(b.e.kind) ||
+          byCodePoint(oneLine(a.e.label ?? ""), oneLine(b.e.label ?? "")) ||
+          byCodePoint(a.line, b.line),
+      )
+      .map(({ line }) => line);
+
   const render = (b: Block, indent: string): string[] => {
     const out = [`${indent}${blockLine(b)}  @id ${b.id}`];
     for (const [key, value] of props(b))
       if (typeof value === "string") out.push(`${indent}  ${key}: ${value}`);
       else out.push(`${indent}  ${key}:`, ...value.map((v) => `${indent}    - ${v}`));
+    for (const line of edgesOf(b.id)) out.push(`${indent}  ${line}`);
     for (const c of sorted(b.id)) out.push(...render(c, indent + "  "));
     return out;
   };

@@ -9,7 +9,7 @@ const golden = (name: string) =>
   readFileSync(new URL(`fixtures/${name}.arch.md`, import.meta.url), "utf8");
 
 describe("serialize", () => {
-  it.each(["single-function", "module-with-functions", "nested-modules", "all-kinds"])("renders %s to its golden architecture file", (name) => {
+  it.each(["single-function", "module-with-functions", "nested-modules", "all-kinds", "edges"])("renders %s to its golden architecture file", (name) => {
     expect(serialize(fixture(name)).arch).toBe(golden(name));
   });
 });
@@ -33,6 +33,11 @@ describe("serialize is deterministic", () => {
       blocks: shuffle(board.blocks, seed).map((b, i) => ({ ...b, position: { x: i * 37, y: -i * 11 } })),
     };
     expect(serialize(reshuffled).arch).toBe(golden("nested-modules"));
+  });
+
+  it("ignores edge array order", () => {
+    const board = fixture("edges");
+    for (const seed of [1, 2, 3, 4]) expect(serialize({ ...board, edges: shuffle(board.edges, seed) }).arch).toBe(golden("edges"));
   });
 
   it("orders sibling names by code point, independent of locale", () => {

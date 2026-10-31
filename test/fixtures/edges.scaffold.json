@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "name": "accounts",
+  "blocks": [
+    { "id": "m_app", "kind": "module", "name": "app", "position": { "x": 0, "y": 0 } },
+    { "id": "f_main", "kind": "function", "name": "main", "parentId": "m_app", "position": { "x": 0, "y": 0 }, "signature": "", "intent": "Starts the app.", "steps": [] },
+    { "id": "f_login", "kind": "function", "name": "login", "parentId": "m_app", "position": { "x": 0, "y": 0 }, "signature": "(email) -> User", "intent": "Logs in.", "steps": [] },
+    { "id": "c_user", "kind": "class", "name": "User", "parentId": "m_app", "position": { "x": 0, "y": 0 } },
+    { "id": "c_admin", "kind": "class", "name": "Admin", "parentId": "m_app", "position": { "x": 0, "y": 0 } },
+    { "id": "i_store", "kind": "interface", "name": "Store", "parentId": "m_app", "position": { "x": 0, "y": 0 } },
+    { "id": "c_db", "kind": "class", "name": "DbStore", "parentId": "m_app", "position": { "x": 0, "y": 0 } },
+    { "id": "s_pg", "kind": "service", "name": "postgres", "position": { "x": 0, "y": 0 }, "description": "" }
+  ],
+  "edges": [
+    { "id": "e_6", "source": "c_db", "target": "s_pg", "kind": "uses" },
+    { "id": "e_1", "source": "f_main", "target": "f_login", "kind": "calls" },
+    { "id": "e_2", "source": "c_admin", "target": "c_user", "kind": "inherits" },
+    { "id": "e_3", "source": "c_db", "target": "i_store", "kind": "implements" },
+    { "id": "e_4", "source": "f_login", "target": "c_user", "kind": "returns" },
+    { "id": "e_5", "source": "f_main", "target": "i_store", "kind": "other", "label": "wires up\nat startup" },
+    { "id": "e_7", "source": "f_login", "target": "s_pg", "kind": "emits" },
+    { "id": "e_8", "source": "s_pg", "target": "f_login", "kind": "handles" },
+    { "id": "e_9", "source": "f_main", "target": "m_app", "kind": "imports" },
+    { "id": "e_10", "source": "f_main", "target": "c_user", "kind": "other", "label": "" }
+  ]
+}

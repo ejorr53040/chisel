@@ -28,6 +28,12 @@ describe("board file store", () => {
     expect(loadBoard(path)).toEqual(fixture("all-kinds"));
   });
 
+  it("round-trips a board with every edge kind", () => {
+    const path = join(tmp(), "accounts.scaffold.json");
+    saveBoard(path, fixture("edges"));
+    expect(loadBoard(path)).toEqual(fixture("edges"));
+  });
+
   it("creates the board's folder when it does not exist yet", () => {
     const path = join(tmp(), "boards", "nested", "shop.scaffold.json");
     saveBoard(path, fixture("nested-modules"));
@@ -101,6 +107,24 @@ describe("board file store", () => {
       "the reserved default-module id",
       JSON.stringify({ version: 1, name: "x", edges: [], blocks: [{ id: "_main", kind: "service", name: "s", position: { x: 0, y: 0 }, description: "" }] }),
       /_main is reserved/,
+    ],
+    [
+      "edge to a missing block",
+      JSON.stringify({ version: 1, name: "x", blocks: [{ id: "a", kind: "module", name: "a", position: { x: 0, y: 0 } }], edges: [{ id: "e", source: "a", target: "ghost", kind: "uses" }] }),
+      /edge e points at "ghost"/,
+    ],
+    [
+      "edge with an unknown kind",
+      JSON.stringify({ version: 1, name: "x", blocks: [{ id: "a", kind: "module", name: "a", position: { x: 0, y: 0 } }], edges: [{ id: "e", source: "a", target: "a", kind: "loves" }] }),
+      /edge e has unknown kind "loves"/,
+    ],
+    [
+      "duplicate edge ids",
+      JSON.stringify({
+        version: 1, name: "x", blocks: [{ id: "a", kind: "module", name: "a", position: { x: 0, y: 0 } }],
+        edges: [{ id: "e", source: "a", target: "a", kind: "uses" }, { id: "e", source: "a", target: "a", kind: "calls" }],
+      }),
+      /duplicate edge ids/,
     ],
   ])("rejects a malformed board file (%s) with a readable error", (_case, contents, message) => {
     const path = join(tmp(), "bad.scaffold.json");
