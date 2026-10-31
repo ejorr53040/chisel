@@ -60,13 +60,13 @@ export const GENERATORS: Partial<Record<Lang, LangSpec>> = {
       "- implements / inherits → public inheritance (override every pure virtual).",
       "- type struct → struct; type enum → `enum class`; const → `inline constexpr` in the header.",
       "- service → a client class whose connection settings come from environment variables (std::getenv).",
-      "- Library blocks become `FetchContent_Declare` + `FetchContent_MakeAvailable` dependencies (pick a well-known library unless an override names one; for an HTTP server default to cpp-httplib). Nothing may require a system package.",
+      "- Library blocks become `FetchContent_Declare` + `FetchContent_MakeAvailable` dependencies pinned to a release tag (pick a well-known library unless an override names one; for an HTTP server default to cpp-httplib). Nothing may require a system package.",
       "- entry http → a handler in the board's HTTP library; entry cli → argv parsing in main.",
       "- Prefer RAII and value types; no raw new/delete.",
     ].join("\n"),
-    verify: "`cmake -S . -B build` then `cmake --build build -j 8`",
+    verify: "exactly `cmake -S . -B build` then `cmake --build build -j 8` (add `--fresh` to the first if the cache goes stale)",
     checks: [
-      ["cmake", "-S", ".", "-B", "build"],
+      ["cmake", "-S", ".", "-B", "build", "--fresh"],
       ["cmake", "--build", "build", "-j", "8"],
     ],
     // Configuring runs the project's CMake code and fetched dependencies; see the README's trust note.

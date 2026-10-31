@@ -10,6 +10,7 @@ export interface GenerateResult {
   runDir: string;
   files: string[];
   errors: GenError[];
+  cancelled?: boolean;
 }
 
 export const failedResult = (message: string, runDir = "", files: string[] = []): GenerateResult => ({

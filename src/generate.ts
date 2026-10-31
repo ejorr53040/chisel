@@ -26,8 +26,15 @@ const RESULT_FILE = "scaffold-result.json";
 const STATUS_FILE = ".scaffold-run.json"; // our own verdict, read back when pruning
 const RUN_DIR = /^\d{4}-\d\d-\d\dT/;
 // Build and cache output is noise in the file list.
-const BUILD_DIRS = ["target", "build", ".mypy_cache"];
-const SKIP_DIRS = new Set([...BUILD_DIRS, "__pycache__", "node_modules", ".git"]);
+// Build output at a run's root, and the file that proves a build system made it (null: always build output).
+// A Python package that happens to be named "build" is source, not output.
+const BUILD_OUTPUT: Record<string, string | null> = { target: "Cargo.toml", build: "CMakeLists.txt", ".mypy_cache": null };
+const isBuildOutput = (runDir: string, dir: string) =>
+  Object.hasOwn(BUILD_OUTPUT, dir) && (BUILD_OUTPUT[dir] === null || existsSync(join(runDir, BUILD_OUTPUT[dir]!)));
+// Caches that are noise at any depth.
+const SKIP_DIRS = new Set(["__pycache__", ".mypy_cache", "node_modules", ".git"]);
+const MAX_CHECK_OUTPUT = 200_000; // before splitting into errors
+const MAX_ERROR = 4_000; // per error, after splitting
 
 export async function generate({
   arch,
@@ -71,7 +78,7 @@ async function runAgent(
   const { exitCode, output } = await runner({ prompt, cwd: runDir, lang, onProgress, signal });
   const failed = (message: string) => failedResult(message, runDir, listFiles(runDir));
 
-  if (signal.aborted) return failed("run cancelled");
+  if (signal.aborted) return { ...failed("run cancelled"), cancelled: true };
   if (exitCode !== 0) return failed(`agent exited with code ${exitCode}:\n${output.slice(-2000)}`);
   const resultPath = join(runDir, RESULT_FILE);
   if (!existsSync(resultPath)) return failed(`agent finished without writing ${RESULT_FILE}`);
@@ -95,8 +102,9 @@ async function runAgent(
 const ID = /@id\s+([^\s:,;()"']*\w)/;
 // A source location like src/lib.rs:6:5, anywhere in a line.
 const LOCATION = /([\w./-]+\.\w+):(\d+)(?::\d+)?/;
-// A line that starts one diagnostic: "path:line[:col]:" (mypy, gcc) or "error[E0308]:" (rustc).
-const HEADER = /^(?:[\w./-]+\.\w+:\d+(?::\d+)?:|(?:error|warning|note)(?:\[\w+\])?:)/;
+// A line that starts one diagnostic: "path:line[:col]: error" (mypy, gcc, clang), "error[E0308]:" (rustc),
+// or a linker's undefined reference. gcc's "required from here" backtrace lines are not headers.
+const HEADER = /^(?:[\w./-]+\.\w+:\d+(?::\d+)?: (?:fatal )?error|(?:error|warning|note)(?:\[\w+\])?:|\S*\bld: .*undefined reference)/;
 
 // Splits checker output into one message per error; warnings, notes and "could not compile" summaries
 // are dropped. Undefined when the output holds no located error, so it stays one message.
@@ -128,7 +136,7 @@ function attribute(runDir: string, arch: string, errors: GenError[]): GenError[]
     })
     .map((e) => {
       const id = onBoard(e.blockId) ?? onBoard(ID.exec(e.message)?.[1]) ?? onBoard(idAbove(runDir, e.message));
-      const message = e.message.slice(0, 4000);
+      const message = e.message.slice(0, MAX_ERROR);
       return id ? { blockId: id, message } : { message };
     });
 }
@@ -162,11 +170,20 @@ export const runChecks: Verifier = async (runDir, lang) => {
     } catch (e) {
       const { stdout = "", stderr = "", message } = e as { stdout?: string; stderr?: string; message: string };
       // Generous cap: it is split per diagnostic later, and rustc puts each location lines below its header.
-      return [{ message: `${command.join(" ")} failed:\n${(stdout + stderr).trim() || message}`.slice(0, 200_000) }];
+      return [{ message: `${command.join(" ")} failed:\n${(stdout + stderr).trim() || message}`.slice(0, MAX_CHECK_OUTPUT) }];
     }
   }
   return [];
 };
+
+// True only for a folder generate() made, so the API never opens arbitrary paths.
+export function isRunDir(path: string): boolean {
+  try {
+    return statSync(path).isDirectory() && existsSync(join(path, STATUS_FILE));
+  } catch {
+    return false;
+  }
+}
 
 // ISO timestamps sort chronologically as strings; a suffix keeps same-millisecond runs apart.
 function newRunDir(langDir: string): string {
@@ -196,14 +213,15 @@ function prune(langDir: string) {
   for (const old of runs.slice(0, -KEEP_RUNS)) if (old !== keep) rmSync(join(langDir, old), { recursive: true, force: true });
   // Older runs keep their source but not their build output (a Rust target/ can be hundreds of MB).
   for (const old of runs.slice(0, -1))
-    for (const dir of BUILD_DIRS) rmSync(join(langDir, old, dir), { recursive: true, force: true });
+    for (const dir of Object.keys(BUILD_OUTPUT))
+      if (isBuildOutput(join(langDir, old), dir)) rmSync(join(langDir, old, dir), { recursive: true, force: true });
 }
 
 function listFiles(root: string, prefix = ""): string[] {
   return readdirSync(join(root, prefix), { withFileTypes: true })
     .flatMap((e) => {
       const rel = prefix ? `${prefix}/${e.name}` : e.name;
-      if (e.isDirectory()) return SKIP_DIRS.has(e.name) ? [] : listFiles(root, rel);
+      if (e.isDirectory()) return SKIP_DIRS.has(e.name) || (!prefix && isBuildOutput(root, e.name)) ? [] : listFiles(root, rel);
       return e.name === STATUS_FILE ? [] : [rel];
     })
     .sort();
