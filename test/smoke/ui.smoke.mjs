@@ -75,6 +75,22 @@ try {
   assert.match(catalog, /^( *)class Class {2}@id c_\w+\n\1 {2}field field {2}@id f_\w+$/m, catalog);
   assert.match(catalog, /^ {2}library HTTP client {2}@id l_\w+\n {4}python: requests$/m, catalog);
 
+  // #4: drag from one block's handle to another's to connect them, retype the edge, and deleting a block drops its edges.
+  const from = await page.locator(".react-flow__node-library .react-flow__handle-right").boundingBox();
+  const to = await page.locator(".react-flow__node-class .react-flow__handle-left").boundingBox();
+  await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(to.x + to.width / 2, to.y + to.height / 2, { steps: 12 });
+  await page.mouse.up();
+  assert.match(await preview.textContent(), /^ {4}-> uses Class \(@id c_\w+\) {2}@edge e_\w+$/m);
+  await page.getByLabel("Relationship").selectOption("other");
+  await page.getByLabel("Label", { exact: true }).fill("serves pages for");
+  assert.match(await preview.textContent(), /-> "serves pages for" Class \(@id c_\w+\)/);
+  await page.locator(".react-flow__node-class").dispatchEvent("click"); // overlapped by a module until #10 sizes containers
+  await page.evaluate(() => document.activeElement?.blur());
+  await page.keyboard.press("Delete");
+  assert.doesNotMatch(await preview.textContent(), /serves pages for|class Class/);
+
   // Opt-in: Generate through the UI with the real agent (SCAFFOLD_AGENT_SMOKE=1).
   if (process.env.SCAFFOLD_AGENT_SMOKE) {
     await page.getByLabel("Board file path").fill(path);

@@ -1,4 +1,4 @@
-import { LANGS, TRIGGERS, type Block } from "../board";
+import { EDGE_KINDS, LANGS, TRIGGERS, type Block, type Edge } from "../board";
 
 type Patch = Partial<Block>;
 
@@ -79,6 +79,34 @@ export function Inspector({ block, onChange }: { block: Block; onChange: (patch:
       )}
       <Text id="f-notes" label="Notes for the agent" rows={2} value={block.notes ?? ""} onChange={(notes) => onChange({ notes: notes || undefined })} />
       <p className="meta">@id {block.id}</p>
+    </div>
+  );
+}
+
+export function EdgeInspector({
+  edge,
+  from,
+  to,
+  onChange,
+  onDelete,
+}: {
+  edge: Edge;
+  from: string;
+  to: string;
+  onChange: (patch: Partial<Edge>) => void;
+  onDelete: () => void;
+}) {
+  return (
+    <div className="stack">
+      <p className="meta">
+        {from} → {to}
+      </p>
+      <Choice id="e-kind" label="Relationship" value={edge.kind} options={EDGE_KINDS} onChange={(kind) => onChange({ kind, label: kind === "other" ? edge.label : undefined })} />
+      {edge.kind === "other" && <Text id="e-label" label="Label" value={edge.label ?? ""} onChange={(label) => onChange({ label })} />}
+      <button className="btn btn--sm btn--danger" onClick={onDelete}>
+        Delete edge
+      </button>
+      <p className="meta">@edge {edge.id}</p>
     </div>
   );
 }
