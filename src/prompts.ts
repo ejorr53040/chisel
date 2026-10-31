@@ -3,11 +3,12 @@ import type { Lang } from "./board";
 interface LangSpec {
   label: string;
   layout: string;
-  verify: string;
+  verify: string; // how the prompt tells the agent to verify
+  checks: string[][]; // the commands the server re-runs itself afterwards
   tools: string[]; // Bash commands the agent may run, as allowedTools patterns
 }
 
-export const LANGS: Record<"python", LangSpec> = {
+export const GENERATORS: Partial<Record<Lang, LangSpec>> = {
   python: {
     label: "Python",
     layout: [
@@ -17,14 +18,24 @@ export const LANGS: Record<"python", LangSpec> = {
       "- Library blocks become `[project] dependencies`; pick the most common package for the capability unless an override names one.",
       "- Use type hints everywhere. Python 3.12+.",
     ].join("\n"),
-    verify: "`python3 -m py_compile` on every .py file, then `mypy --ignore-missing-imports <package>`",
-    tools: ["Bash(python3:*)", "Bash(mypy:*)"],
+    verify: "`python3 -m compileall -q .`, then `mypy --ignore-missing-imports .`",
+    checks: [
+      ["python3", "-m", "compileall", "-q", "."],
+      ["mypy", "--ignore-missing-imports", "."],
+    ],
+    // Not bare python3: that would let a hostile board run arbitrary code through the agent.
+    tools: ["Bash(python3 -m compileall:*)", "Bash(python3 -m py_compile:*)", "Bash(mypy:*)"],
   },
 };
 
+// hasOwn, not `in`: a language like "__proto__" must not resolve to Object.prototype.
+export function generatorFor(lang: string): LangSpec {
+  if (!Object.hasOwn(GENERATORS, lang)) throw new Error(`no generator for ${lang} yet`);
+  return GENERATORS[lang as Lang]!;
+}
+
 export function buildPrompt(lang: Lang, archFile: string, resultFile: string): string {
-  const spec = LANGS[lang as keyof typeof LANGS];
-  if (!spec) throw new Error(`no generator for ${lang} yet`);
+  const spec = generatorFor(lang);
   return `You are generating a ${spec.label} project from an architecture file.
 
 Read ./${archFile}. It is indentation-based pseudocode: indentation is containment, every block line ends with \`@id <id>\`, functions carry a loose signature, an \`intent:\` and optional \`steps:\`.
@@ -45,4 +56,4 @@ Verify: run ${spec.verify}. If it fails, fix the code and verify again. Stop aft
 Finally write ./${resultFile} as JSON: {"ok": <true if verification passed>, "errors": [{"blockId": "<the @id the error is about, if any>", "message": "<one-line error>"}]}. "errors" is empty when ok is true.`;
 }
 
-export const allowedTools = (lang: Lang) => ["Read", "Write", "Edit", "Glob", "Grep", "Bash(ls:*)", ...(LANGS[lang as keyof typeof LANGS]?.tools ?? [])];
+export const allowedTools = (lang: Lang) => ["Read", "Write", "Edit", "Glob", "Grep", "Bash(ls:*)", ...generatorFor(lang).tools];

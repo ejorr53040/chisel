@@ -9,9 +9,10 @@ import {
   type Node,
   type NodeProps,
 } from "@xyflow/react";
-import { newId, type Block, type Board, type Edge, type FunctionBlock } from "../board";
+import { newId, type Block, type Board, type Edge, type FunctionBlock, type Lang } from "../board";
 import { serialize, signatureText } from "../serialize";
-import type { GenerateResult } from "../generate";
+import { failedResult, type GenerateResult } from "../run";
+import { GENERATORS } from "../prompts";
 
 type Run = { running: boolean; progress: string[]; result?: GenerateResult };
 
@@ -87,7 +88,7 @@ export function App() {
   const [edges, setEdges] = useState<Edge[]>([]);
   const [path, setPath] = useState("~/scaffold-boards/untitled.scaffold.json");
   const [status, setStatus] = useState<{ ok: boolean; msg: string } | null>(null);
-  const [lang, setLang] = useState<"python">("python");
+  const [lang, setLang] = useState<Lang>("python");
   const [run, setRun] = useState<Run | null>(null);
   const board = useMemo(() => fromNodes(nodes, name, edges), [nodes, name, edges]);
   const arch = useMemo(() => serialize(board).arch, [board]);
@@ -155,15 +156,14 @@ export function App() {
   // Saves the board, then reads the server-sent events of the run as they arrive.
   const runGenerate = async () => {
     setRun({ running: true, progress: [] });
-    const failed = (message: string) =>
-      setRun((r) => ({ running: false, progress: r?.progress ?? [], result: { ok: false, runDir: "", files: [], errors: [{ message }] } }));
+    const failed = (message: string) => setRun((r) => ({ running: false, progress: r?.progress ?? [], result: failedResult(message) }));
     try {
       const res = await fetch(`/api/generate?path=${encodeURIComponent(path)}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ board, lang }),
       });
-      if (!res.ok) return failed((await res.json()).error);
+      if (!res.ok) return failed((await res.json().catch(() => ({ error: `server answered ${res.status}` }))).error);
       const reader = res.body!.pipeThrough(new TextDecoderStream()).getReader();
       let buffer = "";
       for (;;) {
@@ -182,7 +182,7 @@ export function App() {
     } catch (e) {
       failed((e as Error).message);
     }
-    setRun((r) => (r?.running ? { ...r, running: false, result: r.result ?? { ok: false, runDir: "", files: [], errors: [{ message: "the run ended without a result" }] } } : r));
+    setRun((r) => (r?.running ? { ...r, running: false, result: r.result ?? failedResult("the run ended without a result") } : r));
   };
 
   return (
@@ -202,8 +202,12 @@ export function App() {
         <button className="btn btn--sm btn--primary" onClick={save}>
           Save
         </button>
-        <select aria-label="Target language" value={lang} onChange={(e) => setLang(e.target.value as "python")}>
-          <option value="python">Python</option>
+        <select aria-label="Target language" value={lang} onChange={(e) => setLang(e.target.value as Lang)}>
+          {Object.entries(GENERATORS).map(([value, spec]) => (
+            <option key={value} value={value}>
+              {spec.label}
+            </option>
+          ))}
         </select>
         <button className="btn btn--sm btn--primary" onClick={runGenerate} disabled={run?.running}>
           {run?.running ? "Generating…" : "Generate"}

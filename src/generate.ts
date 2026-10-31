@@ -1,31 +1,28 @@
-import { spawn } from "node:child_process";
+import { execFile } from "node:child_process";
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { promisify } from "node:util";
 import type { Lang } from "./board";
-import { allowedTools, buildPrompt } from "./prompts";
+import { buildPrompt, generatorFor } from "./prompts";
+import { failedResult, type GenError, type GenerateResult } from "./run";
 
-export interface GenError {
-  blockId?: string;
-  message: string;
-}
-
-export interface GenerateResult {
-  ok: boolean;
-  runDir: string;
-  files: string[];
-  errors: GenError[];
-}
+export type { GenError, GenerateResult };
 
 export type Runner = (job: {
   prompt: string;
   cwd: string;
   lang: Lang;
   onProgress: (line: string) => void;
+  signal: AbortSignal;
 }) => Promise<{ exitCode: number; output: string }>;
+
+// Checks the finished project; returns no errors when it verifies.
+export type Verifier = (runDir: string, lang: Lang) => Promise<GenError[]>;
 
 const KEEP_RUNS = 5;
 const ARCH_FILE = "architecture.arch.md";
 const RESULT_FILE = "scaffold-result.json";
+const STATUS_FILE = ".scaffold-run.json"; // our own verdict, read back when pruning
 const RUN_DIR = /^\d{4}-\d\d-\d\dT/;
 // Build and cache output is noise in the file list.
 const SKIP_DIRS = new Set(["__pycache__", ".mypy_cache", "target", "build", "node_modules", ".git"]);
@@ -35,36 +32,75 @@ export async function generate({
   lang,
   outDir,
   runner,
+  verify = runChecks,
   onProgress = () => {},
+  signal = new AbortController().signal,
 }: {
   arch: string;
   lang: Lang;
   outDir: string;
   runner: Runner;
+  verify?: Verifier;
   onProgress?: (line: string) => void;
+  signal?: AbortSignal;
 }): Promise<GenerateResult> {
+  const prompt = buildPrompt(lang, ARCH_FILE, RESULT_FILE);
   const langDir = join(outDir, lang);
   mkdirSync(langDir, { recursive: true });
   const runDir = newRunDir(langDir);
   writeFileSync(join(runDir, ARCH_FILE), arch);
+
+  const result = await runAgent(runDir, lang, prompt, runner, verify, onProgress, signal);
+  writeFileSync(join(runDir, STATUS_FILE), JSON.stringify({ ok: result.ok }));
   prune(langDir);
-
-  const { exitCode, output } = await runner({ prompt: buildPrompt(lang, ARCH_FILE, RESULT_FILE), cwd: runDir, lang, onProgress });
-  const done = (ok: boolean, errors: GenError[]): GenerateResult => ({ ok, runDir, files: listFiles(runDir), errors });
-
-  if (exitCode !== 0) return done(false, [{ message: `agent exited with code ${exitCode}:\n${output.slice(-2000)}` }]);
-  const resultPath = join(runDir, RESULT_FILE);
-  if (!existsSync(resultPath)) return done(false, [{ message: `agent finished without writing ${RESULT_FILE}` }]);
-  try {
-    const r = JSON.parse(readFileSync(resultPath, "utf8"));
-    if (typeof r?.ok !== "boolean" || !Array.isArray(r.errors) || r.errors.some((e: GenError) => typeof e?.message !== "string"))
-      throw new Error();
-    const errors = r.errors.map((e: GenError) => (typeof e.blockId === "string" && e.blockId ? { blockId: e.blockId, message: e.message } : { message: e.message }));
-    return done(r.ok, errors);
-  } catch {
-    return done(false, [{ message: `agent wrote a malformed ${RESULT_FILE}` }]);
-  }
+  return result;
 }
+
+async function runAgent(
+  runDir: string,
+  lang: Lang,
+  prompt: string,
+  runner: Runner,
+  verify: Verifier,
+  onProgress: (line: string) => void,
+  signal: AbortSignal,
+): Promise<GenerateResult> {
+  const { exitCode, output } = await runner({ prompt, cwd: runDir, lang, onProgress, signal });
+  const failed = (message: string) => failedResult(message, runDir, listFiles(runDir));
+
+  if (signal.aborted) return failed("run cancelled");
+  if (exitCode !== 0) return failed(`agent exited with code ${exitCode}:\n${output.slice(-2000)}`);
+  const resultPath = join(runDir, RESULT_FILE);
+  if (!existsSync(resultPath)) return failed(`agent finished without writing ${RESULT_FILE}`);
+  let claimed: { ok: boolean; errors: GenError[] };
+  try {
+    claimed = JSON.parse(readFileSync(resultPath, "utf8"));
+    if (typeof claimed?.ok !== "boolean" || !Array.isArray(claimed.errors) || claimed.errors.some((e) => typeof e?.message !== "string"))
+      throw new Error();
+  } catch {
+    return failed(`agent wrote a malformed ${RESULT_FILE}`);
+  }
+  const errors = claimed.errors.map((e) => (typeof e.blockId === "string" && e.blockId ? { blockId: e.blockId, message: e.message } : { message: e.message }));
+  if (!claimed.ok) return { ok: false, runDir, files: listFiles(runDir), errors };
+  // The agent says it verified; check for ourselves before calling the run verified.
+  onProgress("re-checking the project");
+  const checkErrors = await verify(runDir, lang);
+  return { ok: checkErrors.length === 0, runDir, files: listFiles(runDir), errors: checkErrors };
+}
+
+const exec = promisify(execFile);
+
+export const runChecks: Verifier = async (runDir, lang) => {
+  for (const command of generatorFor(lang).checks) {
+    try {
+      await exec(command[0], command.slice(1), { cwd: runDir, timeout: 300_000, maxBuffer: 10 * 1024 * 1024 });
+    } catch (e) {
+      const { stdout = "", stderr = "", message } = e as { stdout?: string; stderr?: string; message: string };
+      return [{ message: `${command.join(" ")} failed:\n${(stdout + stderr).trim() || message}`.slice(0, 4000) }];
+    }
+  }
+  return [];
+};
 
 // ISO timestamps sort chronologically as strings; a suffix keeps same-millisecond runs apart.
 function newRunDir(langDir: string): string {
@@ -80,9 +116,18 @@ function newRunDir(langDir: string): string {
   }
 }
 
+// Keeps the newest runs, and always the newest verified one, so a string of bad runs never destroys a good one.
 function prune(langDir: string) {
   const runs = readdirSync(langDir).filter((d) => RUN_DIR.test(d)).sort();
-  for (const old of runs.slice(0, -KEEP_RUNS)) rmSync(join(langDir, old), { recursive: true, force: true });
+  const verified = (run: string) => {
+    try {
+      return JSON.parse(readFileSync(join(langDir, run, STATUS_FILE), "utf8")).ok === true;
+    } catch {
+      return false;
+    }
+  };
+  const keep = runs.findLast(verified);
+  for (const old of runs.slice(0, -KEEP_RUNS)) if (old !== keep) rmSync(join(langDir, old), { recursive: true, force: true });
 }
 
 function listFiles(root: string, prefix = ""): string[] {
@@ -90,46 +135,7 @@ function listFiles(root: string, prefix = ""): string[] {
     .flatMap((e) => {
       const rel = prefix ? `${prefix}/${e.name}` : e.name;
       if (e.isDirectory()) return SKIP_DIRS.has(e.name) ? [] : listFiles(root, rel);
-      return [rel];
+      return e.name === STATUS_FILE ? [] : [rel];
     })
     .sort();
 }
-
-// The real agent: Claude Code in print mode, limited to editing the run folder and running the verifier.
-export const claudeRunner: Runner = ({ prompt, cwd, lang, onProgress }) =>
-  new Promise((resolve) => {
-    const child = spawn(
-      "claude",
-      ["-p", prompt, "--output-format", "stream-json", "--verbose", "--permission-mode", "acceptEdits", "--allowedTools", ...allowedTools(lang)],
-      { cwd, stdio: ["ignore", "pipe", "pipe"] },
-    );
-    let output = "";
-    let pending = "";
-    const handle = (line: string) => {
-      if (!line.trim()) return;
-      try {
-        const ev = JSON.parse(line);
-        if (ev.type === "assistant")
-          for (const c of ev.message?.content ?? []) {
-            if (c.type === "text" && c.text.trim()) onProgress(c.text.trim().split("\n")[0].slice(0, 200));
-            if (c.type === "tool_use")
-              onProgress(`${c.name} ${String(c.input?.file_path ?? c.input?.command ?? "").split("\n")[0]}`.trim().slice(0, 200));
-          }
-        if (ev.type === "result") output += `${ev.result ?? ""}\n`;
-      } catch {
-        output += line + "\n";
-      }
-    };
-    child.stdout.on("data", (chunk: Buffer) => {
-      pending += chunk;
-      const lines = pending.split("\n");
-      pending = lines.pop()!;
-      lines.forEach(handle);
-    });
-    child.stderr.on("data", (chunk: Buffer) => (output += chunk));
-    child.on("error", (e) => resolve({ exitCode: 127, output: `could not start claude: ${e.message}` }));
-    child.on("close", (code) => {
-      handle(pending);
-      resolve({ exitCode: code ?? 1, output });
-    });
-  });

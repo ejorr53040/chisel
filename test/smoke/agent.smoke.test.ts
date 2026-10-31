@@ -6,7 +6,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Board } from "../../src/board";
 import { serialize } from "../../src/serialize";
-import { claudeRunner, generate } from "../../src/generate";
+import { generate } from "../../src/generate";
+import { claudeRunner } from "../../src/claude";
 
 const board: Board = {
   version: 1,

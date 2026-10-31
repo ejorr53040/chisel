@@ -5,8 +5,10 @@ import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { loadBoard, saveBoard, validate } from "./src/store";
 import { serialize } from "./src/serialize";
-import { claudeRunner, generate } from "./src/generate";
-import { LANGS } from "./src/prompts";
+import { generate } from "./src/generate";
+import { claudeRunner } from "./src/claude";
+import { generatorFor } from "./src/prompts";
+import { failedResult } from "./src/run";
 import type { Lang } from "./src/board";
 
 const send = (res: ServerResponse, status: number, body: unknown) => {
@@ -22,7 +24,13 @@ function boardPath(req: IncomingMessage): string {
   return path;
 }
 
-// A JSON content type forces a CORS preflight, so other sites can't make the browser write files or start agents.
+// Vite's CORS default trusts every localhost origin, so any local page could otherwise write files and start
+// agents here. Only this app's own pages may call the API.
+function sameOrigin(req: IncomingMessage): boolean {
+  const origin = req.headers.origin;
+  return origin === undefined ? req.headers["sec-fetch-site"] !== "cross-site" : origin === `http://${req.headers.host}`;
+}
+
 function readJson(req: IncomingMessage): Promise<unknown> {
   if (req.method !== "POST" || req.headers["content-type"] !== "application/json")
     return Promise.reject(new Error("use POST with application/json"));
@@ -44,6 +52,8 @@ function api(): Plugin {
   return {
     name: "scaffold-api",
     configureServer(server) {
+      server.middlewares.use("/api", (req, res, next) => (sameOrigin(req) ? next() : send(res, 403, { error: "cross-origin request refused" })));
+
       server.middlewares.use("/api/board", async (req, res) => {
         try {
           const path = boardPath(req);
@@ -56,18 +66,24 @@ function api(): Plugin {
       });
 
       // Saves the board, then streams the run as server-sent events: `progress` lines, then one `done` result.
+      // One run at a time; closing the page stops its agent.
+      let running = false;
       server.middlewares.use("/api/generate", async (req, res) => {
+        if (running) return send(res, 409, { error: "a generation is already running" });
         let path: string, board, lang: Lang;
         try {
           path = boardPath(req);
-          const body = (await readJson(req)) as { board: unknown; lang: Lang };
-          if (!(body.lang in LANGS)) throw new Error(`no generator for ${body.lang} yet`);
-          lang = body.lang;
+          const body = (await readJson(req)) as { board: unknown; lang: string };
+          generatorFor(body.lang);
+          lang = body.lang as Lang;
           board = validate(body.board);
           saveBoard(path, board);
         } catch (e) {
           return send(res, 400, { error: (e as Error).message });
         }
+        running = true;
+        const controller = new AbortController();
+        res.on("close", () => controller.abort());
         res.writeHead(200, { "Content-Type": "text/event-stream", "Cache-Control": "no-cache" });
         const emit = (event: string, data: unknown) => res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
         try {
@@ -77,10 +93,13 @@ function api(): Plugin {
             outDir: join(dirname(path), "out"),
             runner: claudeRunner,
             onProgress: (line) => emit("progress", line),
+            signal: controller.signal,
           });
           emit("done", result);
         } catch (e) {
-          emit("done", { ok: false, runDir: "", files: [], errors: [{ message: (e as Error).message }] });
+          emit("done", failedResult((e as Error).message));
+        } finally {
+          running = false;
         }
         res.end();
       });
