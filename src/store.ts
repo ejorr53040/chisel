@@ -81,6 +81,7 @@ export function validate(data: unknown): Board {
     for (const end of [e.source, e.target]) if (!byId.has(end)) fail(`edge ${e.id} points at "${end}", which is not a block`);
     if (!EDGE_KINDS.includes(e.kind)) fail(`edge ${e.id} has unknown kind "${e.kind}"`);
     if (e.label !== undefined && !isText(e.label)) fail(`edge ${e.id} has a label that is not text`);
+    if (e.label !== undefined && e.kind !== "other") fail(`edge ${e.id} is "${e.kind}", but only "other" edges have labels`);
   });
   // A parent cycle would make its blocks vanish from the architecture file.
   for (const x of b.blocks) {

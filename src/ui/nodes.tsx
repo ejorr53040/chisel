@@ -1,6 +1,6 @@
 import { Handle, MarkerType, NodeResizer, Position, type Edge as FlowEdge, type Node, type NodeProps } from "@xyflow/react";
 import { CONTAINS, LANGS, type Block, type Board, type Edge, type EdgeKind, type Kind } from "../board";
-import { blockLine } from "../serialize";
+import { blockLine, edgeVerb } from "../serialize";
 
 export type BlockNode = Node<{ block: Block }, Kind>;
 
@@ -39,20 +39,19 @@ export const toNodes = (board: Board) => parentsFirst(board.blocks).map(toNode);
 
 export type LinkEdge = FlowEdge<{ edge: Edge }>;
 
-// Five brand series colours for nine kinds, so dash pattern and glyph tell kinds apart too.
+// Each named kind has its own brand colour; dash, width and glyph back that up for colour-blind reading.
+// "other" is the free-form catch-all, drawn thin, dotted and grey with its own label.
 export const EDGE_STYLE: Record<EdgeKind, { color: string; dash?: string; width?: number; glyph: string }> = {
   inherits: { color: "var(--link)", width: 2.5, glyph: "▲" },
-  implements: { color: "var(--link)", dash: "6 4", width: 2.5, glyph: "△" },
-  imports: { color: "var(--dim)", dash: "2 4", glyph: "⇣" },
+  implements: { color: "var(--tile-hl)", dash: "6 4", width: 2.5, glyph: "△" },
+  imports: { color: "var(--text)", dash: "2 3", glyph: "⇣" },
   uses: { color: "var(--dim)", dash: "6 4", glyph: "◇" },
   calls: { color: "var(--fill)", glyph: "→" },
   returns: { color: "var(--ok)", glyph: "↩" },
   emits: { color: "var(--warn)", glyph: "↯" },
-  handles: { color: "var(--warn)", dash: "6 4", glyph: "⚑" },
-  other: { color: "var(--dim)", dash: "2 4", glyph: "…" },
+  handles: { color: "var(--err)", dash: "6 4", glyph: "⚑" },
+  other: { color: "var(--dim)", dash: "1 5", width: 1, glyph: "…" },
 };
-
-export const edgeText = (edge: Edge) => (edge.kind === "other" ? edge.label?.trim() || "other" : edge.kind);
 
 export function toFlowEdge(edge: Edge, selected = false): LinkEdge {
   const style = EDGE_STYLE[edge.kind];
@@ -62,7 +61,7 @@ export function toFlowEdge(edge: Edge, selected = false): LinkEdge {
     target: edge.target,
     selected,
     data: { edge },
-    label: `${style.glyph} ${edgeText(edge)}`,
+    label: `${style.glyph} ${edgeVerb(edge)}`,
     style: { stroke: style.color, strokeDasharray: style.dash, strokeWidth: style.width ?? 1.5 },
     markerEnd: { type: MarkerType.ArrowClosed, color: style.color },
     labelStyle: { fill: style.color, fontFamily: "var(--font-mono)", fontSize: 11 },

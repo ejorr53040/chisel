@@ -17,8 +17,8 @@ module app  @id m_app
     intent: Starts the app.
     -> imports app (@id m_app)  @edge e_9
     -> calls login (@id f_login)  @edge e_1
-    -> other User (@id c_user)  @edge e_10
     -> "wires up at startup" Store (@id i_store)  @edge e_5
+    -> other User (@id c_user)  @edge e_10
 
 module main  @id _main
   service postgres  @id s_pg

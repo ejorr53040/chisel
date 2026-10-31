@@ -126,6 +126,11 @@ describe("board file store", () => {
       }),
       /duplicate edge ids/,
     ],
+    [
+      "label on an edge that is not other",
+      JSON.stringify({ version: 1, name: "x", blocks: [{ id: "a", kind: "module", name: "a", position: { x: 0, y: 0 } }], edges: [{ id: "e", source: "a", target: "a", kind: "uses", label: "hm" }] }),
+      /only "other" edges have labels/,
+    ],
   ])("rejects a malformed board file (%s) with a readable error", (_case, contents, message) => {
     const path = join(tmp(), "bad.scaffold.json");
     writeFileSync(path, contents);

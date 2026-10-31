@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Background, ConnectionMode, Controls, ReactFlow, useEdgesState, useNodesState, useReactFlow, type Connection } from "@xyflow/react";
 import { canContain, newBlock, newId, type Block, type Edge, type Kind, type Lang } from "../board";
 import { serialize } from "../serialize";
@@ -14,7 +14,11 @@ export function App() {
   const [nodes, setNodes, onNodesChange] = useNodesState<BlockNode>([]);
   const [name, setName] = useState("untitled");
   const [flowEdges, setFlowEdges, onEdgesChange] = useEdgesState<LinkEdge>([]);
-  const edges = useMemo(() => flowEdges.map((e) => e.data!.edge), [flowEdges]);
+  // React Flow owns the ends; data.edge carries kind and label.
+  const edges = useMemo(() => flowEdges.map((e) => ({ ...e.data!.edge, source: e.source, target: e.target })), [flowEdges]);
+  // With loose handles React Flow reports the drag's start as the target when it began on a left handle;
+  // an edge always points from the block the drag started on.
+  const connectFrom = useRef<string | null>(null);
   const [path, setPath] = useState("~/scaffold-boards/untitled.scaffold.json");
   const [status, setStatus] = useState<{ ok: boolean; msg: string } | null>(null);
   const [lang, setLang] = useState<Lang>("python");
@@ -27,10 +31,12 @@ export function App() {
 
   // Any block may connect to any block; new edges start as "uses" and open in the inspector to retype.
   const onConnect = (c: Connection) => {
+    const source = connectFrom.current ?? c.source;
+    const target = source === c.source ? c.target : c.source;
     setNodes((ns) => ns.map((n) => ({ ...n, selected: false })));
     setFlowEdges((es) => [
       ...es.map((e) => ({ ...e, selected: false })),
-      toFlowEdge({ id: newId("e"), source: c.source, target: c.target, kind: "uses" }, true),
+      toFlowEdge({ id: newId("e"), source, target, kind: "uses" }, true),
     ]);
   };
   const updateEdge = (id: string, patch: Partial<Edge>) =>
@@ -178,6 +184,8 @@ export function App() {
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
           onConnect={onConnect}
+          onConnectStart={(_e, { nodeId }) => (connectFrom.current = nodeId)}
+          isValidConnection={(c) => c.source !== c.target}
           connectionMode={ConnectionMode.Loose}
           deleteKeyCode={["Backspace", "Delete"]}
           onNodeDragStop={onNodeDragStop}

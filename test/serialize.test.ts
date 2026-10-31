@@ -119,3 +119,19 @@ describe("serialize's default module is deterministic", () => {
     expect(outputs[0]).toContain("module main  @id m_a\n  service db  @id s_db\n");
   });
 });
+
+describe("serialize edge labels", () => {
+  it("sorts labelled edges by the label as written in the file", () => {
+    const board: Board = {
+      version: 1,
+      name: "x",
+      blocks: [{ id: "a", kind: "module", name: "a", position: { x: 0, y: 0 } }],
+      edges: [
+        { id: "e1", source: "a", target: "a", kind: "other", label: 'a"b' },
+        { id: "e2", source: "a", target: "a", kind: "other", label: "a'a" },
+      ],
+    };
+    const lines = serialize(board).arch.split("\n").filter((l) => l.includes("->"));
+    expect(lines).toEqual([`  -> "a'a" a (@id a)  @edge e2`, `  -> "a'b" a (@id a)  @edge e1`]);
+  });
+});

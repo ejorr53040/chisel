@@ -75,22 +75,6 @@ try {
   assert.match(catalog, /^( *)class Class {2}@id c_\w+\n\1 {2}field field {2}@id f_\w+$/m, catalog);
   assert.match(catalog, /^ {2}library HTTP client {2}@id l_\w+\n {4}python: requests$/m, catalog);
 
-  // #4: drag from one block's handle to another's to connect them, retype the edge, and deleting a block drops its edges.
-  const from = await page.locator(".react-flow__node-library .react-flow__handle-right").boundingBox();
-  const to = await page.locator(".react-flow__node-class .react-flow__handle-left").boundingBox();
-  await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
-  await page.mouse.down();
-  await page.mouse.move(to.x + to.width / 2, to.y + to.height / 2, { steps: 12 });
-  await page.mouse.up();
-  assert.match(await preview.textContent(), /^ {4}-> uses Class \(@id c_\w+\) {2}@edge e_\w+$/m);
-  await page.getByLabel("Relationship").selectOption("other");
-  await page.getByLabel("Label", { exact: true }).fill("serves pages for");
-  assert.match(await preview.textContent(), /-> "serves pages for" Class \(@id c_\w+\)/);
-  await page.locator(".react-flow__node-class").dispatchEvent("click"); // overlapped by a module until #10 sizes containers
-  await page.evaluate(() => document.activeElement?.blur());
-  await page.keyboard.press("Delete");
-  assert.doesNotMatch(await preview.textContent(), /serves pages for|class Class/);
-
   // Opt-in: Generate through the UI with the real agent (SCAFFOLD_AGENT_SMOKE=1).
   if (process.env.SCAFFOLD_AGENT_SMOKE) {
     await page.getByLabel("Board file path").fill(path);
@@ -102,6 +86,37 @@ try {
     await run.locator(".chip--ok, .chip--err").filter({ hasText: /verified|failed/ }).waitFor({ timeout: 600_000 });
     assert.equal(await run.locator(".chip--ok").count(), 1, await run.textContent());
     assert.ok((await run.getByLabel("Progress").textContent()).length > 0, "no progress was streamed");
+  }
+
+  // #4 on a fresh board: drag between handles to connect, retype the edge, delete a block and its edges go.
+  {
+    const p2 = await browser.newPage({ viewport: { width: 1400, height: 900 } });
+    p2.on("pageerror", (e) => errors.push(e.message));
+    await p2.goto(url);
+    const dsl = () => p2.getByLabel("Architecture file preview").textContent();
+    await p2.getByRole("button", { name: "+ Class" }).click();
+    await p2.getByRole("button", { name: "+ Library" }).click();
+    await p2.getByLabel("Name", { exact: true }).fill("HTTP client");
+    const lib = await p2.locator(".react-flow__node-library").boundingBox();
+    await p2.mouse.move(lib.x + 30, lib.y + 10);
+    await p2.mouse.down();
+    await p2.mouse.move(lib.x + 30, lib.y + 300, { steps: 8 });
+    await p2.mouse.up();
+    // Start on the class's left handle: the edge must still point from the block the drag began on.
+    const from = await p2.locator(".react-flow__node-class .react-flow__handle-left").boundingBox();
+    const to = await p2.locator(".react-flow__node-library .react-flow__handle-left").boundingBox();
+    await p2.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
+    await p2.mouse.down();
+    await p2.mouse.move(to.x + to.width / 2, to.y + to.height / 2, { steps: 12 });
+    await p2.mouse.up();
+    assert.match(await dsl(), /^ {4}-> uses HTTP client \(@id l_\w+\) {2}@edge e_\w+$/m, await dsl());
+    await p2.getByLabel("Relationship").selectOption("other");
+    await p2.getByLabel("Label", { exact: true }).fill("serves pages for");
+    assert.match(await dsl(), /-> "serves pages for" HTTP client \(@id l_\w+\)/);
+    await p2.locator(".react-flow__node-library").click();
+    await p2.keyboard.press("Delete");
+    assert.doesNotMatch(await dsl(), /->|HTTP client/);
+    await p2.close();
   }
 
   await page.screenshot({ path: process.env.SHOT ?? join(tmpdir(), "scaffold-smoke.png") });

@@ -20,6 +20,10 @@ export function signatureText(signature: string): string {
   return `(${params.trim()})` + (ret.length ? ` -> ${ret.join("->").trim()}` : "");
 }
 
+// What an edge says it is: its kind, or for a labelled "other" edge the label (double quotes become single,
+// since the file quotes it).
+export const edgeVerb = (e: Edge) => (e.kind === "other" && e.label?.trim() ? oneLine(e.label).replaceAll('"', "'") : e.kind);
+
 // Blocks outside any module are written into this one; a top-level module of the same name absorbs them.
 export const DEFAULT_MODULE = { id: "_main", name: "main" };
 
@@ -83,21 +87,21 @@ export function serialize(board: Board, _lang?: Lang): { arch: string; warnings:
 
   const byId = new Map(board.blocks.map((b) => [b.id, b]));
   const outgoing = new Map<string, Edge[]>();
-  for (const e of board.edges) outgoing.set(e.source, [...(outgoing.get(e.source) ?? []), e]);
+  for (const e of board.edges) {
+    if (!byId.has(e.target)) continue;
+    if (!outgoing.has(e.source)) outgoing.set(e.source, []);
+    outgoing.get(e.source)!.push(e);
+  }
   const edgeLine = (e: Edge) => {
     const target = byId.get(e.target)!;
-    const verb = e.kind === "other" && e.label?.trim() ? `"${oneLine(e.label).replaceAll('"', "'")}"` : e.kind;
+    const verb = edgeVerb(e) === e.kind ? e.kind : `"${edgeVerb(e)}"`;
     return `-> ${verb} ${oneLine(target.name)} (@id ${target.id})  @edge ${e.id}`;
   };
+  // Within a kind, the rendered line decides the order, so the file always reads sorted.
   const edgesOf = (id: string) =>
     (outgoing.get(id) ?? [])
       .map((e) => ({ e, line: edgeLine(e) }))
-      .sort(
-        (a, b) =>
-          EDGE_KINDS.indexOf(a.e.kind) - EDGE_KINDS.indexOf(b.e.kind) ||
-          byCodePoint(oneLine(a.e.label ?? ""), oneLine(b.e.label ?? "")) ||
-          byCodePoint(a.line, b.line),
-      )
+      .sort((a, b) => EDGE_KINDS.indexOf(a.e.kind) - EDGE_KINDS.indexOf(b.e.kind) || byCodePoint(a.line, b.line))
       .map(({ line }) => line);
 
   const render = (b: Block, indent: string): string[] => {
