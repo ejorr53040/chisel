@@ -89,9 +89,28 @@ async function runAgent(
   return { ok: checkErrors.length === 0, runDir, files: listFiles(runDir), errors: checkErrors };
 }
 
-// A compiler-style "path:line[:col]:" diagnostic line.
-const DIAGNOSTIC = /^([\w./-]+\.\w+):(\d+)(?::\d+)?:/;
 const ID = /@id\s+(\w+)/;
+// A source location like src/lib.rs:6:5, anywhere in a line.
+const LOCATION = /([\w./-]+\.\w+):(\d+)(?::\d+)?/;
+// A line that starts one diagnostic: "path:line[:col]:" (mypy, gcc) or "error[E0308]:" (rustc).
+const HEADER = /^(?:[\w./-]+\.\w+:\d+(?::\d+)?:|(?:error|warning)(?:\[\w+\])?:)/;
+
+// Splits checker output into one message per error that has a source location; warnings and
+// "could not compile" summaries are dropped. Undefined when the output holds no located error.
+function diagnostics(text: string): string[] | undefined {
+  const chunks: string[][] = [];
+  for (const line of text.split("\n")) {
+    if (HEADER.test(line)) chunks.push([line]);
+    else chunks.at(-1)?.push(line);
+  }
+  const located = chunks
+    .filter(([head]) => !/^warning|: warning:|^error: (could not compile|aborting)/.test(head))
+    .map((chunk) => ({ head: chunk[0], where: LOCATION.exec(chunk.join("\n"))?.[0] }))
+    .filter((c) => c.where);
+  if (!located.length) return;
+  // rustc puts the location on a later "-->" line; carry it into the one-line message.
+  return located.map(({ head, where }) => (head.includes(where!) ? head : `${head} (${where})`));
+}
 
 // Ties each error to the board block it is about: the agent's blockId, an "@id x" in the message, or for a
 // file:line diagnostic the nearest "@id" comment above that line in the generated code. Checker output is split
@@ -100,8 +119,8 @@ function attribute(runDir: string, arch: string, errors: GenError[]): GenError[]
   const known = new Set([...arch.matchAll(new RegExp(ID, "g"))].map((m) => m[1]));
   return errors
     .flatMap((e) => {
-      const diagnostics = e.message.split("\n").filter((line) => DIAGNOSTIC.test(line));
-      return !e.blockId && diagnostics.length ? diagnostics.map((message): GenError => ({ message })) : [e];
+      const split = e.blockId ? undefined : diagnostics(e.message);
+      return split ? split.map((message): GenError => ({ message })) : [e];
     })
     .map((e) => {
       const id = e.blockId ?? ID.exec(e.message)?.[1] ?? idAbove(runDir, e.message);
@@ -112,7 +131,7 @@ function attribute(runDir: string, arch: string, errors: GenError[]): GenError[]
 // ponytail: the nearest @id above a line can be a sibling when the error is in module-level code between
 // definitions; good enough to point at the right area of the board.
 function idAbove(runDir: string, message: string): string | undefined {
-  const [, path, line] = DIAGNOSTIC.exec(message) ?? [];
+  const [, path, line] = LOCATION.exec(message) ?? [];
   if (!path) return;
   const file = resolve(runDir, path);
   if (!file.startsWith(runDir + sep) || !existsSync(file)) return;

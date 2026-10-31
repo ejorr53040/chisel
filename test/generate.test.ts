@@ -163,5 +163,30 @@ describe("generate", () => {
       expect(result.errors).toEqual([{ message: "pyproject.toml is invalid" }]);
     });
   });
+
+  it("reads Rust's multi-line diagnostics, where the location sits on a later --> line", async () => {
+    const rust = "// @id m_greet\npub mod greet {}\n\n// @id f_greeting\npub fn greeting(name: &str) -> String {\n    name\n}\n";
+    const cargo = [
+      "cargo check --quiet failed:",
+      "warning: unused variable: `x`",
+      " --> src/lib.rs:2:9",
+      "  |",
+      "error[E0308]: mismatched types",
+      " --> src/lib.rs:6:5",
+      "  |",
+      "6 |     name",
+      "  |     ^^^^ expected `String`, found `&str`",
+      "",
+      "error: could not compile `greeter` (lib) due to 1 previous error",
+    ].join("\n");
+    const result = await generate({
+      arch: "module greet  @id m_greet\n  fn greeting(name) -> str  @id f_greeting\n",
+      lang: "python",
+      outDir: tmp(),
+      runner: fakeAgent({ ok: true, errors: [] }, { "src/lib.rs": rust }),
+      verify: async () => [{ message: cargo }],
+    });
+    expect(result.errors).toEqual([{ blockId: "f_greeting", message: "error[E0308]: mismatched types (src/lib.rs:6:5)" }]);
+  });
 });
 

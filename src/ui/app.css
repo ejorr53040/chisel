@@ -52,3 +52,7 @@ body { background: var(--bg); color: var(--text); font-family: var(--font-body);
 }
 .error-link { padding: 0 var(--s1); color: var(--err); }
 .run-errors li { margin-bottom: var(--s1); white-space: pre-wrap; }
+
+.warn-badge { margin-left: 6px; color: var(--warn); font-size: var(--t-sm); vertical-align: middle; }
+.warnings { margin: var(--s2) 0 0; padding: 0; list-style: none; font-size: var(--t-xs); color: var(--warn); }
+.warnings li { margin-bottom: var(--s1); }

@@ -135,3 +135,20 @@ describe("serialize edge labels", () => {
     expect(lines).toEqual([`  -> "a'a" a (@id a)  @edge e2`, `  -> "a'b" a (@id a)  @edge e1`]);
   });
 });
+
+describe("serialize warns about lossy mappings for the target language", () => {
+  it("warns on an inherits edge for Rust, naming the edge and its source block", () => {
+    const { warnings } = serialize(fixture("edges"), "rust");
+    expect(warnings).toEqual([
+      { edgeId: "e_2", blockId: "c_admin", message: "Rust has no inheritance: Admin will embed User and share behaviour through a trait." },
+    ]);
+  });
+
+  it("gives no warnings for the same board in Python", () => {
+    expect(serialize(fixture("edges"), "python").warnings).toEqual([]);
+  });
+
+  it("gives no warnings when no language is chosen", () => {
+    expect(serialize(fixture("edges")).warnings).toEqual([]);
+  });
+});

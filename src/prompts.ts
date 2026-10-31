@@ -30,6 +30,24 @@ export const GENERATORS: Partial<Record<Lang, LangSpec>> = {
     // Not bare python3: that would let a hostile board run arbitrary code through the agent.
     tools: ["Bash(python3 -m compileall:*)", "Bash(python3 -m py_compile:*)", "Bash(mypy:*)"],
   },
+  rust: {
+    label: "Rust",
+    layout: [
+      "- A Cargo package (edition 2021). The crate name is the board name in snake_case.",
+      "- A library crate: `src/lib.rs` declares one `pub mod` per top-level module; each `module` becomes `src/<module>.rs`, and a module nested in a module becomes `src/<parent>/<child>.rs`.",
+      "- If the board has an `entry main`, also write `src/main.rs` that calls into the library.",
+      "- class → `pub struct` + `impl`; field → struct field; interface → `pub trait`; implements → `impl Trait for Struct`.",
+      "- inherits → Rust has no inheritance: embed the parent struct as a field and move shared behaviour into a trait both implement. Record this in MAPPING.md.",
+      "- type struct → `#[derive(Debug, Clone, PartialEq)] pub struct`; type enum → `pub enum` with the same derives; const → `pub const`.",
+      "- service → a client struct whose connection settings come from environment variables.",
+      "- entry http → a handler in the board's HTTP library (default axum + tokio); entry cli → clap.",
+      "- Library blocks become `[dependencies]` (pick the most common crate unless an override names one). Prefer `Result` over panics; no `unwrap()` outside tests and main.",
+    ].join("\n"),
+    verify: "`cargo check`",
+    checks: [["cargo", "check", "--quiet", "--color", "never"]],
+    // cargo check still runs build scripts and proc macros from dependencies; see the README's trust note.
+    tools: ["Bash(cargo check:*)", "Bash(cargo add:*)", "Bash(cargo metadata:*)"],
+  },
 };
 
 // hasOwn, not `in`: a language like "__proto__" must not resolve to Object.prototype.
@@ -56,7 +74,7 @@ ${spec.layout}
 Rules:
 - Implement every function body as real, working code that fulfils its intent and steps. No stubs, no TODOs, no NotImplementedError.
 - Use the block names as identifiers, adjusted only to the language's naming conventions.
-- Put a comment \`# @id <id>\` (or the language's comment syntax) on the line above each definition that comes from a block.
+- Put a comment \`@id <id>\` in the language's comment syntax (\`# @id x\`, \`// @id x\`) on the line above each definition that comes from a block.
 - Write MAPPING.md: one line per block (id → file and symbol), then a section listing every place the ${spec.label} output had to deviate from the board (lossy translations) and anything you could not implement.
 
 Verify: run ${spec.verify}. If it fails, fix the code and verify again. Stop after 3 fix attempts.
