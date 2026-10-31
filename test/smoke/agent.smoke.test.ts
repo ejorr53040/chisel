@@ -19,6 +19,15 @@ const board: Board = {
       id: "f_greeting", kind: "function", name: "greeting", parentId: "m_greet", position: { x: 0, y: 0 },
       signature: "(name: str) -> str", intent: "Returns 'Hello, <name>!'.", steps: [],
     },
+    { id: "c_counter", kind: "class", name: "Counter", parentId: "m_greet", position: { x: 0, y: 0 } },
+    { id: "x_count", kind: "field", name: "count", parentId: "c_counter", position: { x: 0, y: 0 }, type: "int" },
+    {
+      id: "f_bump", kind: "function", name: "bump", parentId: "c_counter", position: { x: 0, y: 0 },
+      signature: "-> int", intent: "Adds one to count and returns it.", steps: [],
+    },
+    { id: "t_mood", kind: "type", name: "Mood", parentId: "m_greet", position: { x: 0, y: 0 }, shape: "enum", members: ["happy", "sad"] },
+    { id: "k_max", kind: "constant", name: "MAX_NAME", parentId: "m_greet", position: { x: 0, y: 0 }, type: "int", value: "40" },
+    { id: "e_main", kind: "entry", name: "main", position: { x: 0, y: 0 }, trigger: "main", detail: "prints greeting('world')" },
   ],
 };
 

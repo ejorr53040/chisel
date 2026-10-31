@@ -1,4 +1,4 @@
-import { BLOCK_KINDS, type Block, type Board, type Lang } from "./board";
+import { BLOCK_KINDS, LANGS, type Block, type Board, type Lang } from "./board";
 
 export interface Warning {
   blockId?: string;
@@ -20,27 +20,69 @@ export function signatureText(signature: string): string {
   return `(${params.trim()})` + (ret.length ? ` -> ${ret.join("->").trim()}` : "");
 }
 
+// Blocks outside any module are written into this one; a top-level module of the same name absorbs them.
+export const DEFAULT_MODULE = { id: "_main", name: "main" };
+
+// The block line, without indent or @id.
+export function blockLine(b: Block): string {
+  const name = oneLine(b.name);
+  switch (b.kind) {
+    case "function":
+      return `fn ${name}${signatureText(b.signature)}`;
+    case "field":
+      return `field ${name}${b.type.trim() ? `: ${oneLine(b.type)}` : ""}`;
+    case "constant":
+      return `const ${name}${b.type.trim() ? `: ${oneLine(b.type)}` : ""}${b.value.trim() ? ` = ${oneLine(b.value)}` : ""}`;
+    case "type":
+      return `type ${name} ${b.shape}`;
+    case "entry":
+      return `entry ${b.trigger} ${name}`;
+    default:
+      return `${b.kind} ${name}`;
+  }
+}
+
+// Property lines under the block line, as [key, value] or [key, list].
+function props(b: Block): [string, string | string[]][] {
+  const out: [string, string | string[]][] = [];
+  const add = (key: string, value: string | undefined) => value?.trim() && out.push([key, oneLine(value)]);
+  const list = (key: string, items: string[]) => {
+    const kept = items.map(oneLine).filter(Boolean);
+    if (kept.length) out.push([key, kept]);
+  };
+  add("notes", b.notes);
+  if (b.kind === "function") add("intent", b.intent), list("steps", b.steps);
+  if (b.kind === "type") list("members", b.members);
+  if (b.kind === "library") for (const lang of LANGS) add(lang, b.overrides[lang]);
+  if (b.kind === "service") add("description", b.description);
+  if (b.kind === "entry") add("detail", b.detail);
+  return out;
+}
+
 export function serialize(board: Board, _lang?: Lang): { arch: string; warnings: Warning[] } {
   const children = new Map<string | undefined, Block[]>();
-  for (const b of board.blocks) children.set(b.parentId, [...(children.get(b.parentId) ?? []), b]);
+  const topModule = board.blocks.find((b) => !b.parentId && b.kind === "module" && oneLine(b.name) === DEFAULT_MODULE.name);
+  const defaultId = topModule?.id ?? DEFAULT_MODULE.id;
+  for (const b of board.blocks) {
+    const parent = b.parentId ?? (b.kind === "module" ? undefined : defaultId);
+    children.set(parent, [...(children.get(parent) ?? []), b]);
+  }
+  if (!topModule && children.has(DEFAULT_MODULE.id))
+    children.set(undefined, [...(children.get(undefined) ?? []), { ...DEFAULT_MODULE, kind: "module", position: { x: 0, y: 0 } }]);
+
   const sorted = (parent?: string) =>
     (children.get(parent) ?? []).sort(
       (a, b) =>
         BLOCK_KINDS.indexOf(a.kind) - BLOCK_KINDS.indexOf(b.kind) ||
-        byCodePoint(a.name, b.name) ||
+        byCodePoint(oneLine(a.name), oneLine(b.name)) ||
         byCodePoint(a.id, b.id),
     );
 
   const render = (b: Block, indent: string): string[] => {
-    const out: string[] = [];
-    if (b.kind === "module") {
-      out.push(`${indent}module ${oneLine(b.name)}  @id ${b.id}`);
-    } else {
-      out.push(`${indent}fn ${oneLine(b.name)}${signatureText(b.signature)}  @id ${b.id}`);
-      out.push(`${indent}  intent: ${oneLine(b.intent)}`);
-      const steps = b.steps.map(oneLine).filter(Boolean);
-      if (steps.length) out.push(`${indent}  steps:`, ...steps.map((s) => `${indent}    - ${s}`));
-    }
+    const out = [`${indent}${blockLine(b)}  @id ${b.id}`];
+    for (const [key, value] of props(b))
+      if (typeof value === "string") out.push(`${indent}  ${key}: ${value}`);
+      else out.push(`${indent}  ${key}:`, ...value.map((v) => `${indent}    - ${v}`));
     for (const c of sorted(b.id)) out.push(...render(c, indent + "  "));
     return out;
   };

@@ -25,12 +25,14 @@ module <name>  @id <id>
 
 - **Containment is indentation.** A block's children sit one level deeper than it.
 - **Every block line ends with `@id <id>`**, two spaces after the content. Agent errors cite these IDs.
-- **Order is deterministic:** among siblings, sort by kind order (`function`, then `module`), then name, then id. Names and ids compare by code point, never by locale. Positions, sizes and array order never affect output.
+- **Order is deterministic:** among siblings, sort by kind order (`entry, library, service, const, type, interface, class, field, fn, module`), then name, then id. Names and ids compare by code point, never by locale. Positions, sizes and array order never affect output.
 - **Top-level blocks are separated by one blank line**; nested blocks are not. An empty board is just the two header lines.
 - **Every value is one line.** Newlines (and the whitespace around them) in names, intents and steps fold to a single space.
 - Block properties (`intent:`, `steps:`) sit one level under their block line. Blank steps are omitted.
 - **Signatures are loose but always parenthesised:** empty → `()`; `a, b -> C` → `(a, b) -> C`; text already starting with `(` is kept as written.
-- Blocks with no parent are written at top level for now. The default-module rule (#3) will change this.
+- **Block lines by kind:** `module N`, `class N`, `interface N`, `fn N(sig)`, `field N[: type]`, `const N[: type][ = value]`, `type N struct|enum`, `library <capability>`, `service N`, `entry main|http|cli N`.
+- **Property lines:** `notes:` (any block, first), `intent:` + `steps:` (fn), `members:` (type), one `<lang>: <package>` line per override in `python, rust, cpp` order (library), `description:` (service), `detail:` (entry). Empty properties are omitted.
+- **Default module:** non-module blocks with no parent are written inside `module main  @id _main`, which sorts with the other top-level modules. If the board has its own top-level module named `main`, they go into that one instead.
 - The file ends with a single newline.
 
 Later tickets add block kinds, edges and notes by extending this grammar: new kinds get a keyword and a slot in the kind order; edges and notes get property lines. Existing lines never change shape.

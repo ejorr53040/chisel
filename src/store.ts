@@ -1,9 +1,27 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
-import { BLOCK_KINDS, CONTAINER_KINDS, type Block, type Board } from "./board";
+import { BLOCK_KINDS, LANGS, TRIGGERS, canContain, type Block, type Board, type Kind, type Lang } from "./board";
 import { serialize } from "./serialize";
 
 const KINDS = new Set<string>(BLOCK_KINDS);
+
+const isText = (v: unknown) => typeof v === "string";
+const isTextList = (v: unknown) => Array.isArray(v) && v.every(isText);
+// The kind-specific fields each block must carry, with their check.
+const FIELDS: Record<Kind, [string, (v: unknown) => boolean][]> = {
+  module: [],
+  class: [],
+  interface: [],
+  function: [["signature", isText], ["intent", isText], ["steps", isTextList]],
+  field: [["type", isText]],
+  constant: [["type", isText], ["value", isText]],
+  type: [["shape", (v) => v === "struct" || v === "enum"], ["members", isTextList]],
+  library: [
+    ["overrides", (v) => typeof v === "object" && v !== null && Object.entries(v).every(([k, x]) => LANGS.includes(k as Lang) && isText(x))],
+  ],
+  service: [["description", isText]],
+  entry: [["trigger", (v) => TRIGGERS.includes(v as never)], ["detail", isText]],
+};
 
 export function archPath(boardPath: string): string {
   return boardPath.replace(/\.scaffold\.json$/, "") + ".arch.md";
@@ -46,12 +64,13 @@ export function validate(data: unknown): Board {
   for (const x of b.blocks) {
     if (typeof x.id !== "string" || typeof x.name !== "string") fail("every block needs a string id and name");
     if (!KINDS.has(x.kind)) fail(`block ${x.id} has unknown kind "${x.kind}"`);
-    if (x.kind === "function" && (typeof x.signature !== "string" || typeof x.intent !== "string" || !Array.isArray(x.steps)))
-      fail(`function ${x.id} needs signature, intent and steps`);
+    const missing = FIELDS[x.kind].filter(([key, ok]) => !ok((x as unknown as Record<string, unknown>)[key])).map(([key]) => key);
+    if (missing.length) fail(`${x.kind} ${x.id} needs ${missing.join(", ")}`);
+    if (x.notes !== undefined && !isText(x.notes)) fail(`block ${x.id} has notes that are not text`);
     if (x.parentId === undefined) continue;
     const parent = byId.get(x.parentId);
     if (!parent) fail(`block ${x.id} has parent "${x.parentId}" that does not exist`);
-    if (!CONTAINER_KINDS.has(parent!.kind)) fail(`block ${x.id} has parent ${parent!.id}, but a ${parent!.kind} cannot contain blocks`);
+    if (!canContain(parent!.kind, x.kind)) fail(`block ${x.id} has parent ${parent!.id}, but a ${parent!.kind} cannot contain a ${x.kind}`);
   }
   // A parent cycle would make its blocks vanish from the architecture file.
   for (const x of b.blocks) {
