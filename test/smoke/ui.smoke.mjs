@@ -53,7 +53,7 @@ try {
   original.edges = [{ id: "e_1", source: original.blocks[0].id, target: original.blocks[1].id, kind: "uses" }];
   writeFileSync(withEdges, JSON.stringify(original));
   await page.getByLabel("Board file path").fill(withEdges);
-  await page.getByRole("button", { name: "Open" }).click();
+  await page.getByRole("button", { name: "Open", exact: true }).click();
   await page.getByRole("status").filter({ hasText: "opened" }).waitFor();
   await page.getByRole("button", { name: "Save" }).click();
   await page.getByRole("status").filter({ hasText: "saved" }).waitFor();
@@ -124,7 +124,7 @@ try {
   // Opt-in: Generate through the UI with the real agent (SCAFFOLD_AGENT_SMOKE=1).
   if (process.env.SCAFFOLD_AGENT_SMOKE) {
     await page.getByLabel("Board file path").fill(path);
-    await page.getByRole("button", { name: "Open" }).click();
+    await page.getByRole("button", { name: "Open", exact: true }).click();
     await page.getByRole("status").filter({ hasText: "opened" }).waitFor();
     await page.getByRole("button", { name: "Generate" }).click();
     const run = page.getByRole("region", { name: "Generation run" });
