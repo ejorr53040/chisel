@@ -107,6 +107,7 @@ export function App() {
     const body = await res.json();
     if (!res.ok) return setStatus({ ok: false, msg: body.error });
     setName(body.name);
+    setRun(null); // the last run's errors belong to the previous board
     setFlowEdges(body.edges.map((e: Edge) => toFlowEdge(e)));
     setNodes(toNodes(body));
     setStatus({ ok: true, msg: `opened ${path}` });
