@@ -18,7 +18,7 @@ export type Runner = (job: {
 }) => Promise<{ exitCode: number; output: string }>;
 
 // Checks the finished project; returns no errors when it verifies.
-export type Verifier = (runDir: string, lang: Lang) => Promise<GenError[]>;
+export type Verifier = (runDir: string, lang: Lang, signal: AbortSignal) => Promise<GenError[]>;
 
 const KEEP_RUNS = 5;
 const ARCH_FILE = "architecture.arch.md";
@@ -94,7 +94,8 @@ async function runAgent(
   if (!claimed.ok) return { ok: false, runDir, files: listFiles(runDir), errors };
   // The agent says it verified; check for ourselves before calling the run verified.
   onProgress("re-checking the project");
-  const checkErrors = await verify(runDir, lang);
+  const checkErrors = await verify(runDir, lang, signal);
+  if (signal.aborted) return { ...failed("run cancelled"), cancelled: true };
   return { ok: checkErrors.length === 0, runDir, files: listFiles(runDir), errors: checkErrors };
 }
 
@@ -103,8 +104,10 @@ const ID = /@id\s+([^\s:,;()"']*\w)/;
 // A source location like src/lib.rs:6:5, anywhere in a line.
 const LOCATION = /([\w./-]+\.\w+):(\d+)(?::\d+)?/;
 // A line that starts one diagnostic: "path:line[:col]: error" (mypy, gcc, clang), "error[E0308]:" (rustc),
-// or a linker's undefined reference. gcc's "required from here" backtrace lines are not headers.
-const HEADER = /^(?:[\w./-]+\.\w+:\d+(?::\d+)?: (?:fatal )?error|(?:error|warning|note)(?:\[\w+\])?:|\S*\bld: .*undefined reference)/;
+// GNU ld's "file.cpp:(.text+0x5): undefined reference" or lld's "ld.lld: error:". gcc's "required from
+// here" backtrace lines are not headers.
+const HEADER =
+  /^(?:[\w./-]+\.\w+:\d+(?::\d+)?: (?:fatal )?error|(?:error|warning|note)(?:\[\w+\])?:|\S+:\(\.\w+\+0x[0-9a-f]+\): undefined reference|\S*ld(?:\.lld)?: error:)/;
 
 // Splits checker output into one message per error; warnings, notes and "could not compile" summaries
 // are dropped. Undefined when the output holds no located error, so it stays one message.
@@ -163,10 +166,11 @@ function idAbove(runDir: string, message: string): string | undefined {
 
 const exec = promisify(execFile);
 
-export const runChecks: Verifier = async (runDir, lang) => {
+export const runChecks: Verifier = async (runDir, lang, signal = new AbortController().signal) => {
   for (const command of generatorFor(lang).checks) {
+    if (signal.aborted) return [{ message: "run cancelled" }];
     try {
-      await exec(command[0], command.slice(1), { cwd: runDir, timeout: 300_000, maxBuffer: 10 * 1024 * 1024 });
+      await exec(command[0], command.slice(1), { cwd: runDir, timeout: 300_000, maxBuffer: 10 * 1024 * 1024, signal });
     } catch (e) {
       const { stdout = "", stderr = "", message } = e as { stdout?: string; stderr?: string; message: string };
       // Generous cap: it is split per diagnostic later, and rustc puts each location lines below its header.

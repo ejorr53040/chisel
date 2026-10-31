@@ -299,7 +299,8 @@ describe("generate", () => {
             "src/a.hpp: In instantiation of 'T f() [with T = int]':",
             "src/a.cpp:9:12:   required from here",
             "src/a.hpp:5:7: error: no match for 'operator+'",
-            "/usr/bin/ld: a.cpp:(.text+0x1): undefined reference to `foo()'",
+            "/usr/bin/ld: /tmp/ccA1b2.o: in function `main':",
+            "a.cpp:(.text+0x5): undefined reference to `foo()'",
             "collect2: error: ld returned 1 exit status",
           ].join("\n"),
         },
@@ -307,8 +308,23 @@ describe("generate", () => {
     });
     expect(result.errors.map((e) => e.message)).toEqual([
       "src/a.hpp:5:7: error: no match for 'operator+'",
-      "/usr/bin/ld: a.cpp:(.text+0x1): undefined reference to `foo()'",
+      "a.cpp:(.text+0x5): undefined reference to `foo()'",
     ]);
+  });
+
+  it("reads lld's undefined-symbol errors", async () => {
+    const result = await run({ verify: async () => [{ message: "src/a.cpp:1:1: error: x\nld.lld: error: undefined symbol: foo()\n>>> referenced by a.cpp" }] });
+    expect(result.errors.map((e) => e.message)).toEqual(["src/a.cpp:1:1: error: x", "ld.lld: error: undefined symbol: foo()"]);
+  });
+
+  it("cancels during the re-check too", async () => {
+    const controller = new AbortController();
+    const verify: Verifier = (_dir, _lang, signal) =>
+      new Promise((resolve) => (signal.aborted ? resolve([{ message: "killed" }]) : signal.addEventListener("abort", () => resolve([{ message: "killed" }]))));
+    const pending = run({ verify, signal: controller.signal, onProgress: (l) => l === "re-checking the project" && controller.abort() });
+    const result = await pending;
+    expect(result.cancelled).toBe(true);
+    expect(result.errors).toEqual([{ message: "run cancelled" }]);
   });
 });
 

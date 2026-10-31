@@ -197,6 +197,9 @@ try {
     const ids = await fns();
     assert.equal(ids.length, 2);
     assert.notEqual(ids[0], ids[1]);
+    p3.once("dialog", (d) => d.accept());
+    await p3.getByRole("button", { name: "New" }).click();
+    assert.equal((await fns()).length, 0, "New clears the board");
     await p3.keyboard.press("?");
     const dialog = p3.getByRole("dialog", { name: "Keyboard shortcuts" });
     await dialog.getByText("Duplicate the selection").waitFor();

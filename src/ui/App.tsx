@@ -180,6 +180,16 @@ export function App() {
     requestAnimationFrame(() => rf.fitView());
   };
 
+  // A blank board; asks first when the canvas has blocks, since unsaved work would be lost.
+  const newBoard = () => {
+    if (nodes.length && !window.confirm("Start a new board? Unsaved changes on this one will be lost.")) return;
+    setRun(null);
+    setStatus(null);
+    history.current = { past: [], future: [], current: "", restoring: true };
+    show({ version: 1, name: "untitled", blocks: [], edges: [] });
+    setPath(path.replace(/[^/]*\.scaffold\.json$/, "untitled.scaffold.json"));
+  };
+
   const save = async () => {
     const res = await fetch(`/api/board?path=${encodeURIComponent(path)}`, {
       method: "POST",
@@ -191,7 +201,10 @@ export function App() {
   };
 
   // Saves the board, then reads the server-sent events of the run as they arrive.
-  const cancelRun = () => fetch("/api/generate/cancel", { method: "POST" });
+  const cancelRun = () => {
+    setRun((r) => r && { ...r, progress: [...r.progress, "cancelling…"] });
+    fetch("/api/generate/cancel", { method: "POST" }).catch((e) => setStatus({ ok: false, msg: `cancel failed: ${e.message}` }));
+  };
   const openRunDir = async (runDir: string) => {
     const res = await fetch("/api/open", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ runDir }) });
     if (!res.ok) setStatus({ ok: false, msg: (await res.json()).error });
@@ -262,6 +275,9 @@ export function App() {
         </span>
         <input aria-label="Board name" value={name} onChange={(e) => setName(e.target.value)} />
         <input aria-label="Board file path" className="path" value={path} onChange={(e) => setPath(e.target.value)} />
+        <button className="btn btn--sm" onClick={newBoard}>
+          New
+        </button>
         <button className="btn btn--sm" onClick={open}>
           Open
         </button>
@@ -379,7 +395,7 @@ function RunPanel({
         <span className="label">Run</span>
         {run.running && <span className="chip chip--accent">running</span>}
         {r && (
-          <span className={`chip ${r.ok ? "chip--ok" : r.cancelled ? "" : "chip--err"}`}>{r.ok ? "verified" : r.cancelled ? "cancelled" : "failed"}</span>
+          <span className={r.ok ? "chip chip--ok" : r.cancelled ? "chip" : "chip chip--err"}>{r.ok ? "verified" : r.cancelled ? "cancelled" : "failed"}</span>
         )}
       </div>
       {r?.runDir && (

@@ -79,9 +79,9 @@ function api(): Plugin {
       server.middlewares.use("/api/open", async (req, res) => {
         try {
           const { runDir } = (await readJson(req)) as { runDir: string };
-          if (typeof runDir !== "string" || !isRunDir(runDir)) throw new Error("not a scaffold run folder");
+          if (typeof runDir !== "string" || !isRunDir(resolve(runDir))) throw new Error("not a scaffold run folder");
           const opener = process.platform === "darwin" ? "open" : process.platform === "win32" ? "explorer" : "xdg-open";
-          spawn(opener, [runDir], { detached: true, stdio: "ignore" }).on("error", () => {}).unref();
+          spawn(opener, [resolve(runDir)], { detached: true, stdio: "ignore" }).on("error", () => {}).unref();
           send(res, 200, { opened: runDir });
         } catch (e) {
           send(res, 400, { error: (e as Error).message });
