@@ -1,3 +1,4 @@
+import { createContext, useContext } from "react";
 import { Handle, MarkerType, NodeResizer, Position, type Edge as FlowEdge, type Node, type NodeProps } from "@xyflow/react";
 import { CONTAINS, LANGS, type Block, type Board, type Edge, type EdgeKind, type Kind } from "../board";
 import { blockLine, edgeVerb } from "../serialize";
@@ -89,12 +90,21 @@ export function fromNodes(nodes: BlockNode[], name: string, edges: Edge[]): Boar
   return { version: 1, name, blocks, edges: edges.filter((e) => ids.has(e.source) && ids.has(e.target)) };
 }
 
-// The architecture-file line, split into its keyword and the rest.
+// How many errors the last run tied to each block id.
+export const BlockErrors = createContext<ReadonlyMap<string, number>>(new Map());
+
+// The architecture-file line, split into its keyword and the rest, plus the block's error badge.
 function Title({ block }: { block: Block }) {
   const [keyword, ...rest] = blockLine(block).split(" ");
+  const errors = useContext(BlockErrors).get(block.id);
   return (
     <div className="block-title">
       <span className="kw">{keyword}</span> {rest.join(" ")}
+      {errors && (
+        <span className="error-badge" role="img" aria-label={`${errors} error${errors > 1 ? "s" : ""} in the last run`}>
+          {errors}
+        </span>
+      )}
     </div>
   );
 }

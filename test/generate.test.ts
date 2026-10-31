@@ -127,4 +127,41 @@ describe("generate", () => {
   it("rejects a language with no generator", async () => {
     await expect(run({ lang: "__proto__" as never })).rejects.toThrow(/no generator for __proto__/);
   });
+
+  describe("ties errors to blocks", () => {
+    const code = "# @id f_main\ndef main() -> None:\n    print('hello')\n    return 1\n";
+
+    it("reads an @id written in the agent's error message", async () => {
+      const result = await run({ runner: fakeAgent({ ok: false, errors: [{ message: "could not implement @id f_main: unclear intent" }] }) });
+      expect(result.errors).toEqual([{ blockId: "f_main", message: "could not implement @id f_main: unclear intent" }]);
+    });
+
+    it("splits checker output into one error per file:line and finds each line's block by its @id comment", async () => {
+      const result = await run({
+        runner: fakeAgent({ ok: true, errors: [] }, { "demo/main.py": code }),
+        verify: async () => [
+          {
+            message:
+              "mypy --ignore-missing-imports . failed:\ndemo/main.py:4: error: No return value expected  [return-value]\nnotes.txt:1: error: elsewhere\nFound 2 errors in 2 files",
+          },
+        ],
+      });
+      expect(result.ok).toBe(false);
+      expect(result.errors).toEqual([
+        { blockId: "f_main", message: "demo/main.py:4: error: No return value expected  [return-value]" },
+        { message: "notes.txt:1: error: elsewhere" },
+      ]);
+    });
+
+    it("drops a blockId that is not on the board", async () => {
+      const result = await run({ runner: fakeAgent({ ok: false, errors: [{ blockId: "f_ghost", message: "bad" }] }) });
+      expect(result.errors).toEqual([{ message: "bad" }]);
+    });
+
+    it("leaves errors that name no block without a blockId", async () => {
+      const result = await run({ runner: fakeAgent({ ok: false, errors: [{ message: "pyproject.toml is invalid" }] }) });
+      expect(result.errors).toEqual([{ message: "pyproject.toml is invalid" }]);
+    });
+  });
 });
+
