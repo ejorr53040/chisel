@@ -18,6 +18,20 @@ export const KIND_LABELS: Record<Kind, string> = {
   entry: "Entry point",
 };
 
+// One-letter shortcuts for adding each kind.
+export const KIND_KEYS: Record<Kind, string> = {
+  module: "m",
+  class: "c",
+  interface: "i",
+  function: "f",
+  field: "d",
+  constant: "k",
+  type: "t",
+  library: "l",
+  service: "s",
+  entry: "e",
+};
+
 export const isContainer = (kind: Kind) => kind in CONTAINS;
 
 // Default sizes; every container kind (anything in CONTAINS) gets one.
@@ -26,7 +40,8 @@ const containerSize = (kind: Kind) =>
 
 export function toNode(block: Block): BlockNode {
   const size = isContainer(block.kind) ? (block.size ?? containerSize(block.kind)) : undefined;
-  return { id: block.id, type: block.kind, position: block.position, parentId: block.parentId, data: { block }, ...size };
+  // expandParent: dragging a child against its container's edge grows the container.
+  return { id: block.id, type: block.kind, position: block.position, parentId: block.parentId, expandParent: !!block.parentId, data: { block }, ...size };
 }
 
 // React Flow needs every parent before its children in the node array.

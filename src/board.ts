@@ -150,3 +150,43 @@ export interface Board {
 export function newId(prefix: string): string {
   return `${prefix}_${Math.random().toString(36).slice(2, 8)}`;
 }
+
+// Copies the chosen blocks and everything inside them under fresh ids, plus the edges that run between
+// copied blocks. Top-level copies are nudged so they don't sit exactly on their originals.
+export function duplicate(board: Board, ids: string[]): { board: Board; copies: string[] } {
+  const byId = new Map(board.blocks.map((b) => [b.id, b]));
+  const chosen = new Set(ids);
+  const insideChosen = (b: Block) => {
+    for (let p = b.parentId; p; p = byId.get(p)?.parentId) if (chosen.has(p)) return true;
+    return false;
+  };
+  const roots = ids.filter((id) => byId.has(id) && !insideChosen(byId.get(id)!));
+  const copied: Block[] = [];
+  const collect = (id: string) => {
+    copied.push(byId.get(id)!);
+    for (const child of board.blocks) if (child.parentId === id) collect(child.id);
+  };
+  roots.forEach(collect);
+
+  const taken = new Set([...board.blocks.map((b) => b.id), ...board.edges.map((e) => e.id)]);
+  const fresh = (prefix: string) => {
+    let id: string;
+    do id = newId(prefix);
+    while (taken.has(id));
+    taken.add(id);
+    return id;
+  };
+  const idMap = new Map(copied.map((b) => [b.id, fresh(b.id.split("_")[0] || b.kind[0])]));
+  const blocks = copied.map(
+    (b): Block => ({
+      ...structuredClone(b),
+      id: idMap.get(b.id)!,
+      parentId: b.parentId && idMap.has(b.parentId) ? idMap.get(b.parentId) : b.parentId,
+      position: roots.includes(b.id) ? { x: b.position.x + 24, y: b.position.y + 24 } : { ...b.position },
+    }),
+  );
+  const edges = board.edges
+    .filter((e) => idMap.has(e.source) && idMap.has(e.target))
+    .map((e) => ({ ...e, id: fresh("e"), source: idMap.get(e.source)!, target: idMap.get(e.target)! }));
+  return { board: { ...board, blocks: [...board.blocks, ...blocks], edges: [...board.edges, ...edges] }, copies: blocks.map((b) => b.id) };
+}

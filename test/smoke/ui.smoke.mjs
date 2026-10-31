@@ -116,8 +116,7 @@ try {
     await page.getByRole("button", { name: "Cancel" }).click();
     await runPanel.getByText("cancelled", { exact: true }).waitFor();
     assert.equal(await page.getByRole("button", { name: "Cancel" }).count(), 0);
-    await runPanel.getByRole("button", { name: "Open folder" }).click();
-    await page.waitForFunction(() => true);
+    await Promise.all([page.waitForRequest("**/api/open"), runPanel.getByRole("button", { name: "Open folder" }).click()]);
     assert.deepEqual(opened, { runDir: "/tmp/run-9" });
     await page.unrouteAll();
   }
@@ -172,6 +171,38 @@ try {
     await p2.keyboard.press("Delete");
     assert.doesNotMatch(await dsl(), /->|HTTP client/);
     await p2.close();
+  }
+
+  // #10 on a fresh board: add by key, undo/redo, duplicate with fresh ids, the shortcut list.
+  {
+    const p3 = await browser.newPage({ viewport: { width: 1400, height: 900 } });
+    p3.on("pageerror", (e) => errors.push(e.message));
+    await p3.goto(url);
+    const fns = async () => ((await p3.getByLabel("Architecture file preview").textContent()).match(/^ {2}fn function\(\) {2}@id (\w+)/gm) ?? []);
+    const settle = () => p3.waitForTimeout(450); // history snapshots once edits pause for 300ms
+    await p3.locator(".canvas").click({ position: { x: 5, y: 5 } });
+    await settle();
+    await p3.keyboard.press("f");
+    await settle();
+    assert.equal((await fns()).length, 1);
+    await p3.keyboard.press("Control+z");
+    await settle();
+    assert.equal((await fns()).length, 0, "undo removes the added block");
+    await p3.keyboard.press("Control+Shift+z");
+    await settle();
+    assert.equal((await fns()).length, 1, "redo brings it back");
+    await p3.locator(".react-flow__node-function").click();
+    await p3.keyboard.press("Control+d");
+    await settle();
+    const ids = await fns();
+    assert.equal(ids.length, 2);
+    assert.notEqual(ids[0], ids[1]);
+    await p3.keyboard.press("?");
+    const dialog = p3.getByRole("dialog", { name: "Keyboard shortcuts" });
+    await dialog.getByText("Duplicate the selection").waitFor();
+    await p3.keyboard.press("Escape");
+    assert.equal(await dialog.count(), 0);
+    await p3.close();
   }
 
   await page.screenshot({ path: process.env.SHOT ?? join(tmpdir(), "scaffold-smoke.png") });

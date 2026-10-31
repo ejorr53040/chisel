@@ -56,3 +56,9 @@ body { background: var(--bg); color: var(--text); font-family: var(--font-body);
 .warn-badge { margin-left: 6px; color: var(--warn); font-size: var(--t-sm); vertical-align: middle; }
 .warnings { margin: var(--s2) 0 0; padding: 0; list-style: none; font-size: var(--t-xs); color: var(--warn); }
 .warnings li { margin-bottom: var(--s1); }
+
+.palette-btn { justify-content: space-between; }
+kbd { font-family: var(--font-mono); font-size: var(--t-xs); color: var(--dim); border: 1px solid var(--border); border-radius: 4px; padding: 0 4px; }
+.help-backdrop { position: fixed; inset: 0; z-index: 10; display: grid; place-items: center; background: color-mix(in srgb, var(--bg) 60%, transparent); }
+.help { max-width: min(480px, calc(100vw - 32px)); max-height: 80vh; overflow: auto; padding: var(--s5); display: flex; flex-direction: column; gap: var(--s3); background: var(--surface); }
+.help td { padding: 3px var(--s3) 3px 0; font-size: var(--t-sm); vertical-align: top; }
