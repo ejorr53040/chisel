@@ -1,7 +1,7 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { BLOCK_KINDS, LANGS, TRIGGERS, canContain, type Block, type Board, type Kind, type Lang } from "./board";
-import { serialize } from "./serialize";
+import { DEFAULT_MODULE, serialize } from "./serialize";
 
 const KINDS = new Set<string>(BLOCK_KINDS);
 
@@ -63,6 +63,7 @@ export function validate(data: unknown): Board {
   if (byId.size !== b.blocks.length) fail("duplicate block ids");
   for (const x of b.blocks) {
     if (typeof x.id !== "string" || typeof x.name !== "string") fail("every block needs a string id and name");
+    if (x.id === DEFAULT_MODULE.id) fail(`the block id ${DEFAULT_MODULE.id} is reserved for the default module`);
     if (!KINDS.has(x.kind)) fail(`block ${x.id} has unknown kind "${x.kind}"`);
     const missing = FIELDS[x.kind].filter(([key, ok]) => !ok((x as unknown as Record<string, unknown>)[key])).map(([key]) => key);
     if (missing.length) fail(`${x.kind} ${x.id} needs ${missing.join(", ")}`);

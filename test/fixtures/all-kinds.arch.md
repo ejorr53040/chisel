@@ -8,6 +8,7 @@ module main  @id _main
   library HTTP server  @id l_http
     python: fastapi
     rust: axum
+    cpp: drogon
   service postgres  @id s_db
     description: Stores carts.
 
@@ -28,5 +29,6 @@ module shop  @id m_shop
   class Cart  @id c_cart
     field items: list[LineItem]  @id x_items
     field owner  @id x_owner
+      notes: Who the cart belongs to.
     fn total() -> Money  @id f_total
       intent: Sums the line items.

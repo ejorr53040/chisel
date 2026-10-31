@@ -32,7 +32,7 @@ export function App() {
     setNodes((ns) => [...ns.map((n) => ({ ...n, selected: false })), { ...toNode(block), selected: true }]);
   };
 
-  const update = (id: string, patch: Record<string, unknown>) =>
+  const update = (id: string, patch: Partial<Block>) =>
     setNodes((ns) =>
       ns.map((n) => (n.id === id ? { ...n, data: { block: { ...n.data.block, ...patch } as Block } } : n)),
     );

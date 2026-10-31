@@ -5,7 +5,7 @@
     { "id": "m_shop", "kind": "module", "name": "shop", "position": { "x": 0, "y": 0 }, "notes": "Core domain.\nKeep it pure." },
     { "id": "c_cart", "kind": "class", "name": "Cart", "parentId": "m_shop", "position": { "x": 10, "y": 40 } },
     { "id": "x_items", "kind": "field", "name": "items", "parentId": "c_cart", "position": { "x": 10, "y": 40 }, "type": "list[LineItem]" },
-    { "id": "x_owner", "kind": "field", "name": "owner", "parentId": "c_cart", "position": { "x": 10, "y": 80 }, "type": "" },
+    { "id": "x_owner", "kind": "field", "name": "owner", "parentId": "c_cart", "position": { "x": 10, "y": 80 }, "type": "", "notes": "Who the cart belongs to." },
     { "id": "f_total", "kind": "function", "name": "total", "parentId": "c_cart", "position": { "x": 10, "y": 120 },
       "signature": "-> Money", "intent": "Sums the line items.", "steps": [] },
     { "id": "i_store", "kind": "interface", "name": "CartStore", "parentId": "m_shop", "position": { "x": 300, "y": 40 } },
@@ -16,7 +16,7 @@
       "shape": "enum", "members": ["open", "paid", ""] },
     { "id": "t_line", "kind": "type", "name": "LineItem", "parentId": "m_shop", "position": { "x": 0, "y": 380 },
       "shape": "struct", "members": ["sku: str", "qty: int"] },
-    { "id": "l_http", "kind": "library", "name": "HTTP server", "position": { "x": 600, "y": 0 }, "overrides": { "python": "fastapi", "rust": "axum" } },
+    { "id": "l_http", "kind": "library", "name": "HTTP server", "position": { "x": 600, "y": 0 }, "overrides": { "cpp": "drogon", "python": "fastapi", "rust": "axum" } },
     { "id": "s_db", "kind": "service", "name": "postgres", "position": { "x": 600, "y": 100 }, "description": "Stores carts." },
     { "id": "e_api", "kind": "entry", "name": "checkout", "position": { "x": 600, "y": 200 }, "trigger": "http", "detail": "POST /checkout" },
     { "id": "e_main", "kind": "entry", "name": "main", "position": { "x": 600, "y": 300 }, "trigger": "main", "detail": "" }

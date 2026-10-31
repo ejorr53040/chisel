@@ -101,3 +101,16 @@ describe("serialize's default module", () => {
     );
   });
 });
+
+describe("serialize's default module is deterministic", () => {
+  it("picks the top-level main module with the smallest id when there are two", () => {
+    const blocks: Board["blocks"] = [
+      { id: "m_b", kind: "module", name: "main", position: { x: 0, y: 0 } },
+      { id: "m_a", kind: "module", name: "main", position: { x: 0, y: 0 } },
+      { id: "s_db", kind: "service", name: "db", position: { x: 0, y: 0 }, description: "" },
+    ];
+    const outputs = [1, 2, 3, 4].map((seed) => serialize({ version: 1, name: "x", edges: [], blocks: shuffle(blocks, seed) }).arch);
+    expect(new Set(outputs).size).toBe(1);
+    expect(outputs[0]).toContain("module main  @id m_a\n  service db  @id s_db\n");
+  });
+});

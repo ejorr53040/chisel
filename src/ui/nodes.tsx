@@ -1,5 +1,5 @@
 import { NodeResizer, type Node, type NodeProps } from "@xyflow/react";
-import { CONTAINS, type Block, type Board, type Edge, type Kind } from "../board";
+import { CONTAINS, LANGS, type Block, type Board, type Edge, type Kind } from "../board";
 import { blockLine } from "../serialize";
 
 export type BlockNode = Node<{ block: Block }, Kind>;
@@ -13,20 +13,18 @@ export const KIND_LABELS: Record<Kind, string> = {
   constant: "Constant",
   type: "Type / Enum",
   library: "Library",
-  service: "Service",
+  service: "External service",
   entry: "Entry point",
 };
 
 export const isContainer = (kind: Kind) => kind in CONTAINS;
 
-const CONTAINER_SIZE: Partial<Record<Kind, { width: number; height: number }>> = {
-  module: { width: 360, height: 240 },
-  class: { width: 300, height: 200 },
-  interface: { width: 280, height: 160 },
-};
+// Default sizes; every container kind (anything in CONTAINS) gets one.
+const containerSize = (kind: Kind) =>
+  ({ module: { width: 360, height: 240 }, class: { width: 300, height: 200 } })[kind as string] ?? { width: 280, height: 160 };
 
 export function toNode(block: Block): BlockNode {
-  const size = isContainer(block.kind) ? (block.size ?? CONTAINER_SIZE[block.kind]) : undefined;
+  const size = isContainer(block.kind) ? (block.size ?? containerSize(block.kind)) : undefined;
   return { id: block.id, type: block.kind, position: block.position, parentId: block.parentId, data: { block }, ...size };
 }
 
@@ -47,8 +45,8 @@ export function fromNodes(nodes: BlockNode[], name: string, edges: Edge[]): Boar
       position: { x: Math.round(n.position.x), y: Math.round(n.position.y) },
       parentId: n.parentId && ids.has(n.parentId) ? n.parentId : undefined,
     };
-    const fallback = CONTAINER_SIZE[block.kind];
-    if (fallback)
+    const fallback = containerSize(block.kind);
+    if (isContainer(block.kind))
       block.size = {
         width: Math.round(n.width ?? n.measured?.width ?? fallback.width),
         height: Math.round(n.height ?? n.measured?.height ?? fallback.height),
@@ -79,9 +77,8 @@ function detail(b: Block): string | undefined {
     case "type":
       return b.members.filter(Boolean).join(", ");
     case "library":
-      return Object.entries(b.overrides)
-        .filter(([, pkg]) => pkg)
-        .map(([lang, pkg]) => `${lang}: ${pkg}`)
+      return LANGS.filter((lang) => b.overrides[lang]?.trim())
+        .map((lang) => `${lang}: ${b.overrides[lang]}`)
         .join(" · ");
     default:
       return b.notes;

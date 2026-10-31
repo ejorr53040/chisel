@@ -32,7 +32,9 @@ module <name>  @id <id>
 - **Signatures are loose but always parenthesised:** empty → `()`; `a, b -> C` → `(a, b) -> C`; text already starting with `(` is kept as written.
 - **Block lines by kind:** `module N`, `class N`, `interface N`, `fn N(sig)`, `field N[: type]`, `const N[: type][ = value]`, `type N struct|enum`, `library <capability>`, `service N`, `entry main|http|cli N`.
 - **Property lines:** `notes:` (any block, first), `intent:` + `steps:` (fn), `members:` (type), one `<lang>: <package>` line per override in `python, rust, cpp` order (library), `description:` (service), `detail:` (entry). Empty properties are omitted.
-- **Default module:** non-module blocks with no parent are written inside `module main  @id _main`, which sorts with the other top-level modules. If the board has its own top-level module named `main`, they go into that one instead.
+- **Default module:** non-module blocks with no parent are written inside `module main  @id _main`, which sorts with the other top-level modules. If the board has its own top-level module named `main`, they go into that one instead (the smallest id, if there are several). The id `_main` is reserved; board files using it are rejected.
+- **Containment rules:** a module may hold any block; a class holds const, type, field and fn; an interface holds fn; nothing else holds blocks. The UI only nests where these allow, and board files that break them are rejected.
+- Keywords above are the DSL's (`fn`, `const`); the board file calls the same kinds `function` and `constant`.
 - The file ends with a single newline.
 
 Later tickets add block kinds, edges and notes by extending this grammar: new kinds get a keyword and a slot in the kind order; edges and notes get property lines. Existing lines never change shape.

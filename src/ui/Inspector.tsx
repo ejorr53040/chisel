@@ -1,6 +1,6 @@
 import { LANGS, TRIGGERS, type Block } from "../board";
 
-type Patch = Record<string, unknown>;
+type Patch = Partial<Block>;
 
 function Text({ id, label, value, onChange, rows }: { id: string; label: string; value: string; onChange: (v: string) => void; rows?: number }) {
   return (
@@ -65,7 +65,7 @@ export function Inspector({ block, onChange }: { block: Block; onChange: (patch:
             id={`f-pkg-${lang}`}
             label={`${LANG_LABELS[lang]} package (optional)`}
             value={block.overrides[lang] ?? ""}
-            onChange={(pkg) => onChange({ overrides: { ...block.overrides, [lang]: pkg || undefined } })}
+            onChange={(pkg) => onChange({ overrides: { ...block.overrides, [lang]: pkg.trim() ? pkg : undefined } })}
           />
         ))}
       {block.kind === "service" && (

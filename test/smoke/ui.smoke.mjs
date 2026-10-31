@@ -59,7 +59,7 @@ try {
   assert.deepEqual(JSON.parse(readFileSync(withEdges, "utf8")).edges, original.edges);
 
   // #3: every kind is in the palette; a field dropped on a class becomes a member; library overrides reach the DSL.
-  for (const label of ["Module", "Class", "Interface", "Function", "Field", "Constant", "Type / Enum", "Library", "Service", "Entry point"])
+  for (const label of ["Module", "Class", "Interface", "Function", "Field", "Constant", "Type / Enum", "Library", "External service", "Entry point"])
     assert.equal(await page.getByRole("button", { name: `+ ${label}` }).count(), 1, label);
   await page.getByRole("button", { name: "+ Class" }).click();
   await page.getByRole("button", { name: "+ Field" }).click();

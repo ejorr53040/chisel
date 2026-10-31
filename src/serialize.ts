@@ -61,7 +61,10 @@ function props(b: Block): [string, string | string[]][] {
 
 export function serialize(board: Board, _lang?: Lang): { arch: string; warnings: Warning[] } {
   const children = new Map<string | undefined, Block[]>();
-  const topModule = board.blocks.find((b) => !b.parentId && b.kind === "module" && oneLine(b.name) === DEFAULT_MODULE.name);
+  // Smallest id wins, so array order never decides which "main" absorbs the orphans.
+  const topModule = board.blocks
+    .filter((b) => !b.parentId && b.kind === "module" && oneLine(b.name) === DEFAULT_MODULE.name)
+    .sort((a, b) => byCodePoint(a.id, b.id))[0];
   const defaultId = topModule?.id ?? DEFAULT_MODULE.id;
   for (const b of board.blocks) {
     const parent = b.parentId ?? (b.kind === "module" ? undefined : defaultId);

@@ -97,6 +97,11 @@ describe("board file store", () => {
       JSON.stringify({ version: 1, name: "x", edges: [], blocks: [{ id: "l", kind: "library", name: "http", position: { x: 0, y: 0 }, overrides: { cobol: "x" } }] }),
       /library l needs overrides/,
     ],
+    [
+      "the reserved default-module id",
+      JSON.stringify({ version: 1, name: "x", edges: [], blocks: [{ id: "_main", kind: "service", name: "s", position: { x: 0, y: 0 }, description: "" }] }),
+      /_main is reserved/,
+    ],
   ])("rejects a malformed board file (%s) with a readable error", (_case, contents, message) => {
     const path = join(tmp(), "bad.scaffold.json");
     writeFileSync(path, contents);

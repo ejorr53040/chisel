@@ -14,7 +14,7 @@ export const GENERATORS: Partial<Record<Lang, LangSpec>> = {
     layout: [
       "- A pyproject.toml package. The package name is the board name in snake_case.",
       "- Each `module` becomes `<package>/<module>.py`; a module nested in a module becomes a subpackage.",
-      "- The `main` module becomes `<package>/main.py`.",
+      "- The top-level `main` module becomes `<package>/main.py`.",
       "- class → class; field → typed attribute (a @dataclass when the class is mostly data); interface → typing.Protocol.",
       "- type struct → @dataclass; type enum → enum.Enum; const → module-level `Final`.",
       "- service → a small client class whose connection settings come from environment variables.",
