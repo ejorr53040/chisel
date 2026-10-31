@@ -26,7 +26,8 @@ const RESULT_FILE = "scaffold-result.json";
 const STATUS_FILE = ".scaffold-run.json"; // our own verdict, read back when pruning
 const RUN_DIR = /^\d{4}-\d\d-\d\dT/;
 // Build and cache output is noise in the file list.
-const SKIP_DIRS = new Set(["__pycache__", ".mypy_cache", "target", "build", "node_modules", ".git"]);
+const BUILD_DIRS = ["target", "build", ".mypy_cache"];
+const SKIP_DIRS = new Set([...BUILD_DIRS, "__pycache__", "node_modules", ".git"]);
 
 export async function generate({
   arch,
@@ -97,21 +98,20 @@ const LOCATION = /([\w./-]+\.\w+):(\d+)(?::\d+)?/;
 // A line that starts one diagnostic: "path:line[:col]:" (mypy, gcc) or "error[E0308]:" (rustc).
 const HEADER = /^(?:[\w./-]+\.\w+:\d+(?::\d+)?:|(?:error|warning|note)(?:\[\w+\])?:)/;
 
-// Splits checker output into one message per error that has a source location; warnings and
-// "could not compile" summaries are dropped. Undefined when the output holds no located error.
+// Splits checker output into one message per error; warnings, notes and "could not compile" summaries
+// are dropped. Undefined when the output holds no located error, so it stays one message.
 function diagnostics(text: string): string[] | undefined {
   const chunks: string[][] = [];
   for (const line of text.split("\n")) {
     if (HEADER.test(line)) chunks.push([line]);
     else chunks.at(-1)?.push(line);
   }
-  const located = chunks
+  const errors = chunks
     .filter(([head]) => !/^(warning|note)(\[\w+\])?:|: (warning|note):|^error: (could not compile|aborting)/.test(head))
-    .map((chunk) => ({ head: chunk[0], where: LOCATION.exec(chunk.join("\n"))?.[0] }))
-    .filter((c) => c.where);
-  if (!located.length) return;
+    .map((chunk) => ({ head: chunk[0], where: LOCATION.exec(chunk.join("\n"))?.[0] }));
+  if (!errors.some((e) => e.where)) return;
   // rustc puts the location on a later "-->" line; carry it into the one-line message.
-  return located.map(({ head, where }) => (head.includes(where!) ? head : `${head} (${where})`));
+  return errors.map(({ head, where }) => (!where || head.includes(where) ? head : `${head} (${where})`));
 }
 
 // Ties each error to the board block it is about: the agent's blockId, an "@id x" in the message, or for a
@@ -128,7 +128,8 @@ function attribute(runDir: string, arch: string, errors: GenError[]): GenError[]
     })
     .map((e) => {
       const id = onBoard(e.blockId) ?? onBoard(ID.exec(e.message)?.[1]) ?? onBoard(idAbove(runDir, e.message));
-      return id ? { blockId: id, message: e.message } : { message: e.message };
+      const message = e.message.slice(0, 4000);
+      return id ? { blockId: id, message } : { message };
     });
 }
 
@@ -160,7 +161,8 @@ export const runChecks: Verifier = async (runDir, lang) => {
       await exec(command[0], command.slice(1), { cwd: runDir, timeout: 300_000, maxBuffer: 10 * 1024 * 1024 });
     } catch (e) {
       const { stdout = "", stderr = "", message } = e as { stdout?: string; stderr?: string; message: string };
-      return [{ message: `${command.join(" ")} failed:\n${(stdout + stderr).trim() || message}`.slice(0, 4000) }];
+      // Generous cap: it is split per diagnostic later, and rustc puts each location lines below its header.
+      return [{ message: `${command.join(" ")} failed:\n${(stdout + stderr).trim() || message}`.slice(0, 200_000) }];
     }
   }
   return [];
@@ -192,6 +194,9 @@ function prune(langDir: string) {
   };
   const keep = runs.findLast(verified);
   for (const old of runs.slice(0, -KEEP_RUNS)) if (old !== keep) rmSync(join(langDir, old), { recursive: true, force: true });
+  // Older runs keep their source but not their build output (a Rust target/ can be hundreds of MB).
+  for (const old of runs.slice(0, -1))
+    for (const dir of BUILD_DIRS) rmSync(join(langDir, old, dir), { recursive: true, force: true });
 }
 
 function listFiles(root: string, prefix = ""): string[] {

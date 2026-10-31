@@ -249,5 +249,27 @@ describe("generate", () => {
     });
     expect(result.errors).toEqual([{ blockId: "f_total", message: `${seenRunDir}/src/shop.cpp:4:24: error: cannot convert 'const char*' to 'int' in return` }]);
   });
+
+  it("keeps errors that have no location alongside located ones", async () => {
+    const result = await run({
+      verify: async () => [
+        { message: "cargo check failed:\nerror: package `x` cannot be built because it requires rustc 1.99\nerror[E0308]: mismatched types\n --> src/lib.rs:6:5\nerror: could not compile `x`" },
+      ],
+    });
+    expect(result.errors).toEqual([
+      { message: "error: package `x` cannot be built because it requires rustc 1.99" },
+      { message: "error[E0308]: mismatched types (src/lib.rs:6:5)" },
+    ]);
+  });
+
+  it("clears build output from older runs but keeps the newest run's", async () => {
+    const outDir = tmp();
+    const withTarget = fakeAgent({ ok: true, errors: [] }, { "target/debug/big.bin": "x", "src/lib.rs": "" });
+    const first = (await run({ outDir, runner: withTarget })).runDir;
+    const second = (await run({ outDir, runner: withTarget })).runDir;
+    expect(existsSync(join(first, "target"))).toBe(false);
+    expect(existsSync(join(first, "src/lib.rs"))).toBe(true);
+    expect(existsSync(join(second, "target/debug/big.bin"))).toBe(true);
+  });
 });
 
