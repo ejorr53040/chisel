@@ -9,8 +9,8 @@ import {
   type Node,
   type NodeProps,
 } from "@xyflow/react";
-import { newId, type Block, type Board, type FunctionBlock } from "../board";
-import { serialize } from "../serialize";
+import { newId, type Block, type Board, type Edge, type FunctionBlock } from "../board";
+import { serialize, signatureText } from "../serialize";
 
 type BlockNode = Node<{ block: Block }, Block["kind"]>;
 
@@ -30,7 +30,7 @@ function parentsFirst<T extends { id: string; parentId?: string }>(items: T[]): 
 
 const toNodes = (board: Board) => parentsFirst(board.blocks).map(toNode);
 
-function fromNodes(nodes: BlockNode[], name: string): Board {
+function fromNodes(nodes: BlockNode[], name: string, edges: Edge[]): Board {
   const ids = new Set(nodes.map((n) => n.id));
   const blocks = nodes.map((n): Block => {
     const block: Block = {
@@ -45,7 +45,7 @@ function fromNodes(nodes: BlockNode[], name: string): Board {
       };
     return block;
   });
-  return { version: 1, name, blocks, edges: [] };
+  return { version: 1, name, blocks, edges };
 }
 
 function ModuleNode({ data, selected }: NodeProps<BlockNode>) {
@@ -67,7 +67,7 @@ function FunctionNode({ data, selected }: NodeProps<BlockNode>) {
     <div className={`block block--fn${selected ? " is-selected" : ""}`}>
       <div className="block-title">
         <span className="kw">fn</span> {b.name}
-        <span className="dim">{b.signature || "()"}</span>
+        <span className="dim">{signatureText(b.signature)}</span>
       </div>
       {b.intent && <div className="block-intent">{b.intent}</div>}
     </div>
@@ -80,9 +80,11 @@ export function App() {
   const rf = useReactFlow<BlockNode>();
   const [nodes, setNodes, onNodesChange] = useNodesState<BlockNode>([]);
   const [name, setName] = useState("untitled");
+  // Edges have no UI until #4, but an opened board's edges must survive a save.
+  const [edges, setEdges] = useState<Edge[]>([]);
   const [path, setPath] = useState("~/scaffold-boards/untitled.scaffold.json");
   const [status, setStatus] = useState<{ ok: boolean; msg: string } | null>(null);
-  const board = useMemo(() => fromNodes(nodes, name), [nodes, name]);
+  const board = useMemo(() => fromNodes(nodes, name, edges), [nodes, name, edges]);
   const arch = useMemo(() => serialize(board).arch, [board]);
   const selected = nodes.find((n) => n.selected);
 
@@ -129,6 +131,7 @@ export function App() {
     const body = await res.json();
     if (!res.ok) return setStatus({ ok: false, msg: body.error });
     setName(body.name);
+    setEdges(body.edges);
     setNodes(toNodes(body));
     setStatus({ ok: true, msg: `opened ${path}` });
     requestAnimationFrame(() => rf.fitView());

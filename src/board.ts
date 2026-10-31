@@ -24,6 +24,10 @@ export interface FunctionBlock extends BlockBase {
 
 export type Block = ModuleBlock | FunctionBlock;
 
+// The one list of block kinds; its order is the sibling order in the architecture file.
+export const BLOCK_KINDS = ["function", "module"] as const satisfies readonly Block["kind"][];
+export const CONTAINER_KINDS: ReadonlySet<Block["kind"]> = new Set(["module"]);
+
 export interface Edge {
   id: string;
   source: string;

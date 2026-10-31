@@ -22,6 +22,12 @@ describe("board file store", () => {
     );
   });
 
+  it("creates the board's folder when it does not exist yet", () => {
+    const path = join(tmp(), "boards", "nested", "shop.scaffold.json");
+    saveBoard(path, fixture("nested-modules"));
+    expect(loadBoard(path)).toEqual(fixture("nested-modules"));
+  });
+
   it.each([
     ["not JSON", "{ nope", /not valid JSON/],
     ["wrong version", JSON.stringify({ version: 9, name: "x", blocks: [], edges: [] }), /version/],
@@ -35,6 +41,29 @@ describe("board file store", () => {
       "dangling parent",
       JSON.stringify({ version: 1, name: "x", edges: [], blocks: [{ id: "a", kind: "module", name: "a", parentId: "ghost", position: { x: 0, y: 0 } }] }),
       /ghost/,
+    ],
+    ["null block", JSON.stringify({ version: 1, name: "x", edges: [], blocks: [null] }), /block 0 is not an object/],
+    [
+      "parent cycle",
+      JSON.stringify({
+        version: 1, name: "x", edges: [],
+        blocks: [
+          { id: "a", kind: "module", name: "a", parentId: "b", position: { x: 0, y: 0 } },
+          { id: "b", kind: "module", name: "b", parentId: "a", position: { x: 0, y: 0 } },
+        ],
+      }),
+      /cycle/,
+    ],
+    [
+      "function as parent",
+      JSON.stringify({
+        version: 1, name: "x", edges: [],
+        blocks: [
+          { id: "f", kind: "function", name: "f", position: { x: 0, y: 0 }, signature: "", intent: "", steps: [] },
+          { id: "m", kind: "module", name: "m", parentId: "f", position: { x: 0, y: 0 } },
+        ],
+      }),
+      /cannot contain/,
     ],
   ])("rejects a malformed board file (%s) with a readable error", (_case, contents, message) => {
     const path = join(tmp(), "bad.scaffold.json");
