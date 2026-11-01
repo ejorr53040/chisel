@@ -291,6 +291,16 @@ describe("generate", () => {
     expect(existsSync(join(second, "target/debug/big.bin"))).toBe(true);
   });
 
+  it("clears installed npm dependencies from older TypeScript runs", async () => {
+    const outDir = tmp();
+    const withDeps = fakeAgent({ ok: true, errors: [] }, { "package.json": "{}", "node_modules/left-pad/index.js": "x", "src/app.ts": "" });
+    const first = (await run({ lang: "typescript", outDir, runner: withDeps })).runDir;
+    const second = (await run({ lang: "typescript", outDir, runner: withDeps })).runDir;
+    expect(existsSync(join(first, "node_modules"))).toBe(false);
+    expect(existsSync(join(first, "src/app.ts"))).toBe(true);
+    expect(existsSync(join(second, "node_modules/left-pad/index.js"))).toBe(true);
+  });
+
   it("recognises its own run folders and nothing else", async () => {
     const result = await run();
     expect(isRunDir(result.runDir)).toBe(true);

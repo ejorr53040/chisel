@@ -28,7 +28,7 @@ const RUN_DIR = /^\d{4}-\d\d-\d\dT/;
 // Build and cache output is noise in the file list.
 // Build output at a run's root, and the file that proves a build system made it (null: always build output).
 // A Python package that happens to be named "build" is source, not output.
-const BUILD_OUTPUT: Record<string, string | null> = { target: "Cargo.toml", build: "CMakeLists.txt", ".mypy_cache": null };
+const BUILD_OUTPUT: Record<string, string | null> = { target: "Cargo.toml", build: "CMakeLists.txt", node_modules: "package.json", ".mypy_cache": null };
 const isBuildOutput = (runDir: string, dir: string) =>
   Object.hasOwn(BUILD_OUTPUT, dir) && (BUILD_OUTPUT[dir] === null || existsSync(join(runDir, BUILD_OUTPUT[dir]!)));
 // Caches that are noise at any depth.
