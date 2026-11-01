@@ -152,7 +152,7 @@ export function newId(prefix: string): string {
 }
 
 // Copies the chosen blocks and everything inside them under fresh ids, plus the edges that run between
-// copied blocks. Top-level copies are nudged so they don't sit exactly on their originals.
+// copied blocks (edges to blocks outside the copy are not duplicated: the copy starts unconnected). Top-level copies are nudged so they don't sit exactly on their originals.
 export function duplicate(board: Board, ids: string[]): { board: Board; copies: string[] } {
   const byId = new Map(board.blocks.map((b) => [b.id, b]));
   const chosen = new Set(ids);

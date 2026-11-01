@@ -40,8 +40,7 @@ const containerSize = (kind: Kind) =>
 
 export function toNode(block: Block): BlockNode {
   const size = isContainer(block.kind) ? (block.size ?? containerSize(block.kind)) : undefined;
-  // expandParent: dragging a child against its container's edge grows the container.
-  return { id: block.id, type: block.kind, position: block.position, parentId: block.parentId, expandParent: !!block.parentId, data: { block }, ...size };
+  return { id: block.id, type: block.kind, position: block.position, parentId: block.parentId, data: { block }, ...size };
 }
 
 // React Flow needs every parent before its children in the node array.

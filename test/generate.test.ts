@@ -301,6 +301,7 @@ describe("generate", () => {
             "src/a.hpp:5:7: error: no match for 'operator+'",
             "/usr/bin/ld: /tmp/ccA1b2.o: in function `main':",
             "a.cpp:(.text+0x5): undefined reference to `foo()'",
+            "a.cpp:(.text.startup+0x9): undefined reference to `bar()'",
             "collect2: error: ld returned 1 exit status",
           ].join("\n"),
         },
@@ -309,6 +310,7 @@ describe("generate", () => {
     expect(result.errors.map((e) => e.message)).toEqual([
       "src/a.hpp:5:7: error: no match for 'operator+'",
       "a.cpp:(.text+0x5): undefined reference to `foo()'",
+      "a.cpp:(.text.startup+0x9): undefined reference to `bar()'",
     ]);
   });
 

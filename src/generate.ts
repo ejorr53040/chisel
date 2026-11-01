@@ -107,7 +107,7 @@ const LOCATION = /([\w./-]+\.\w+):(\d+)(?::\d+)?/;
 // GNU ld's "file.cpp:(.text+0x5): undefined reference" or lld's "ld.lld: error:". gcc's "required from
 // here" backtrace lines are not headers.
 const HEADER =
-  /^(?:[\w./-]+\.\w+:\d+(?::\d+)?: (?:fatal )?error|(?:error|warning|note)(?:\[\w+\])?:|\S+:\(\.\w+\+0x[0-9a-f]+\): undefined reference|\S*ld(?:\.lld)?: error:)/;
+  /^(?:[\w./-]+\.\w+:\d+(?::\d+)?: (?:fatal )?error|(?:error|warning|note)(?:\[\w+\])?:|\S+:\(\.[\w.$]+\+0x[0-9a-f]+\): undefined reference|\S*ld(?:\.lld)?: error:)/;
 
 // Splits checker output into one message per error; warnings, notes and "could not compile" summaries
 // are dropped. Undefined when the output holds no located error, so it stays one message.

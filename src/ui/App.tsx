@@ -114,7 +114,7 @@ export function App() {
         ns.map((n) => {
           const move = moves.get(n.id);
           const size = grow.get(n.id);
-          const moved = move ? { ...n, parentId: move.parentId, expandParent: !!move.parentId, position: move.position } : n;
+          const moved = move ? { ...n, parentId: move.parentId, position: move.position } : n;
           return size && (size.width > (n.measured?.width ?? 0) || size.height > (n.measured?.height ?? 0))
             ? { ...moved, width: Math.round(size.width), height: Math.round(size.height) }
             : moved;
@@ -130,25 +130,29 @@ export function App() {
     setFlowEdges(next.edges.map((e) => toFlowEdge(e)));
   };
 
-  // Undo history: snapshots of the board, taken once edits pause so a drag is one step.
-  const history = useRef({ past: [] as string[], future: [] as string[], current: "", restoring: true });
+  // Undo history: snapshots of the board, taken once edits pause so a drag is one step. `current` is the
+  // snapshot on screen; an empty one means "take whatever is shown next as the starting point".
+  const history = useRef({ past: [] as string[], future: [] as string[], current: "" });
+  const [historyEpoch, setHistoryEpoch] = useState(0);
   const boardJson = useMemo(() => JSON.stringify(board), [board]);
+  const record = (json: string) => {
+    const h = history.current;
+    if (!h.current) h.current = json;
+    if (json === h.current) return;
+    h.past = [...h.past, h.current].slice(-100);
+    h.future = [];
+    h.current = json;
+  };
   useEffect(() => {
-    const timer = setTimeout(() => {
-      const h = history.current;
-      if (h.restoring || !h.current) {
-        h.restoring = false;
-        h.current = boardJson;
-        return;
-      }
-      if (boardJson === h.current) return;
-      h.past = [...h.past, h.current].slice(-100);
-      h.future = [];
-      h.current = boardJson;
-    }, 300);
+    const timer = setTimeout(() => record(boardJson), 300);
     return () => clearTimeout(timer);
-  }, [boardJson]);
+  }, [boardJson, historyEpoch]);
+  const resetHistory = () => {
+    history.current = { past: [], future: [], current: "" };
+    setHistoryEpoch((n) => n + 1);
+  };
   const travel = (from: "past" | "future") => {
+    record(boardJson); // an edit still inside the debounce window is a step of its own
     const h = history.current;
     const to = from === "past" ? "future" : "past";
     const snapshot = h[from].at(-1);
@@ -156,7 +160,6 @@ export function App() {
     h[from] = h[from].slice(0, -1);
     h[to] = [...h[to], h.current];
     h.current = snapshot;
-    h.restoring = true;
     show(JSON.parse(snapshot));
   };
   const undo = () => travel("past");
@@ -174,7 +177,7 @@ export function App() {
     const body = await res.json();
     if (!res.ok) return setStatus({ ok: false, msg: body.error });
     setRun(null); // the last run's errors belong to the previous board
-    history.current = { past: [], future: [], current: "", restoring: true };
+    resetHistory();
     show(body);
     setStatus({ ok: true, msg: `opened ${path}` });
     requestAnimationFrame(() => rf.fitView());
@@ -185,9 +188,10 @@ export function App() {
     if (nodes.length && !window.confirm("Start a new board? Unsaved changes on this one will be lost.")) return;
     setRun(null);
     setStatus(null);
-    history.current = { past: [], future: [], current: "", restoring: true };
+    resetHistory();
     show({ version: 1, name: "untitled", blocks: [], edges: [] });
-    setPath(path.replace(/[^/]*\.scaffold\.json$/, "untitled.scaffold.json"));
+    // Always a fresh file name, so the next Save can't overwrite the board that was open.
+    setPath(path.slice(0, path.lastIndexOf("/") + 1) + "untitled.scaffold.json");
   };
 
   const save = async () => {
@@ -251,12 +255,14 @@ export function App() {
       const act = (fn: () => void) => (e.preventDefault(), fn());
       if (mod && key === "s") return act(save);
       if (mod && e.key === "Enter") return act(() => run?.running || runGenerate());
-      if (typing) return;
+      if (e.repeat) return;
+      if (typing && !help) return;
+      // While the shortcut list is open, only closing it does anything.
+      if (help) return e.key === "Escape" || e.key === "?" ? act(() => setHelp(false)) : act(() => {});
       if (mod && key === "z") return act(e.shiftKey ? redo : undo);
       if (mod && key === "y") return act(redo);
       if (mod && key === "d") return act(duplicateSelection);
       if (e.key === "?") return act(() => setHelp((h) => !h));
-      if (e.key === "Escape") return setHelp(false);
       if (!mod && !e.altKey && !e.shiftKey && byKey[key]) return act(() => add(byKey[key]));
     };
     window.addEventListener("keydown", onKey);
@@ -275,7 +281,7 @@ export function App() {
         </span>
         <input aria-label="Board name" value={name} onChange={(e) => setName(e.target.value)} />
         <input aria-label="Board file path" className="path" value={path} onChange={(e) => setPath(e.target.value)} />
-        <button className="btn btn--sm" onClick={newBoard}>
+        <button className="btn btn--sm" onClick={newBoard} disabled={run?.running}>
           New
         </button>
         <button className="btn btn--sm" onClick={open}>
@@ -331,7 +337,7 @@ export function App() {
           onConnectStart={(_e, { nodeId }) => (connectFrom.current = nodeId)}
           isValidConnection={(c) => c.source !== c.target}
           connectionMode={ConnectionMode.Loose}
-          deleteKeyCode={["Backspace", "Delete"]}
+          deleteKeyCode={help ? null : ["Backspace", "Delete"]}
           onNodeDragStop={onNodeDragStop}
           nodeTypes={nodeTypes}
           proOptions={{ hideAttribution: true }}

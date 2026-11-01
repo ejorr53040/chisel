@@ -197,6 +197,24 @@ try {
     const ids = await fns();
     assert.equal(ids.length, 2);
     assert.notEqual(ids[0], ids[1]);
+    // Undo, then a new edit, then undo again lands on the state before that edit (not further back).
+    await p3.keyboard.press("c");
+    await settle();
+    await p3.keyboard.press("Control+z");
+    await settle();
+    await p3.keyboard.press("m");
+    await settle();
+    await p3.keyboard.press("Control+z");
+    await settle();
+    const afterUndo = await p3.getByLabel("Architecture file preview").textContent();
+    assert.equal((await fns()).length, 2, afterUndo);
+    assert.doesNotMatch(afterUndo, /class Class|module module/, afterUndo);
+    // Keys don't reach the board while the shortcut list is open.
+    await p3.keyboard.press("?");
+    await p3.keyboard.press("f");
+    await p3.keyboard.press("Escape");
+    await settle();
+    assert.equal((await fns()).length, 2, "a key pressed behind the dialog added a block");
     p3.once("dialog", (d) => d.accept());
     await p3.getByRole("button", { name: "New" }).click();
     assert.equal((await fns()).length, 0, "New clears the board");
@@ -206,6 +224,30 @@ try {
     await p3.keyboard.press("Escape");
     assert.equal(await dialog.count(), 0);
     await p3.close();
+  }
+
+  // Dragging a block out of its container onto bare canvas un-nests it.
+  {
+    const p4 = await browser.newPage({ viewport: { width: 1400, height: 900 } });
+    p4.on("pageerror", (e) => errors.push(e.message));
+    await p4.goto(url);
+    const dsl = () => p4.getByLabel("Architecture file preview").textContent();
+    await p4.getByRole("button", { name: "+ Module" }).click();
+    await p4.getByRole("button", { name: "+ Function" }).click();
+    const fn = await p4.locator(".react-flow__node-function").boundingBox();
+    await p4.mouse.move(fn.x + 20, fn.y + 8);
+    await p4.mouse.down();
+    await p4.mouse.move(fn.x + 40, fn.y + 30, { steps: 6 });
+    await p4.mouse.up();
+    assert.match(await dsl(), /^module module {2}@id m_\w+\n {2}fn function/m, "nested first");
+    const inside = await p4.locator(".react-flow__node-function").boundingBox();
+    const canvas = await p4.locator(".canvas").boundingBox();
+    await p4.mouse.move(inside.x + 20, inside.y + 8);
+    await p4.mouse.down();
+    await p4.mouse.move(canvas.x + 60, canvas.y + 60, { steps: 12 });
+    await p4.mouse.up();
+    assert.match(await dsl(), /^module main {2}@id _main\n {2}fn function/m, await dsl());
+    await p4.close();
   }
 
   await page.screenshot({ path: process.env.SHOT ?? join(tmpdir(), "scaffold-smoke.png") });
