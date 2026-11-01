@@ -99,6 +99,29 @@ try {
   assert.equal(await page.locator(".error-badge").count(), 0);
   await page.unroute("**/api/generate**");
 
+  // #9: Cancel shows only while a run is going and stops it; "Open folder" asks the server for that run's folder.
+  {
+    let release;
+    const cancelled = new Promise((resolve) => (release = resolve));
+    await page.route("**/api/generate/cancel", (route) => (release(), route.fulfill({ json: { cancelled: true } })));
+    await page.route("**/api/generate?**", async (route) => {
+      await cancelled;
+      const done = { ok: false, cancelled: true, runDir: "/tmp/run-9", files: [], errors: [{ message: "run cancelled" }] };
+      route.fulfill({ status: 200, contentType: "text/event-stream", body: `event: done\ndata: ${JSON.stringify(done)}\n\n` });
+    });
+    let opened;
+    await page.route("**/api/open", (route) => ((opened = route.request().postDataJSON()), route.fulfill({ json: { opened: "/tmp/run-9" } })));
+    assert.equal(await page.getByRole("button", { name: "Cancel" }).count(), 0);
+    await page.getByRole("button", { name: "Generate" }).click();
+    await page.getByRole("button", { name: "Cancel" }).click();
+    await runPanel.getByText("cancelled", { exact: true }).waitFor();
+    assert.equal(await page.getByRole("button", { name: "Cancel" }).count(), 0);
+    await runPanel.getByRole("button", { name: "Open folder" }).click();
+    await page.waitForFunction(() => true);
+    assert.deepEqual(opened, { runDir: "/tmp/run-9" });
+    await page.unrouteAll();
+  }
+
   // Opt-in: Generate through the UI with the real agent (SCAFFOLD_AGENT_SMOKE=1).
   if (process.env.SCAFFOLD_AGENT_SMOKE) {
     await page.getByLabel("Board file path").fill(path);

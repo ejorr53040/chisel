@@ -5,7 +5,8 @@ import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { loadBoard, saveBoard, validate } from "./src/store";
 import { serialize } from "./src/serialize";
-import { generate } from "./src/generate";
+import { generate, isRunDir } from "./src/generate";
+import { spawn } from "node:child_process";
 import { claudeRunner } from "./src/claude";
 import { generatorFor } from "./src/prompts";
 import { failedResult } from "./src/run";
@@ -66,10 +67,29 @@ function api(): Plugin {
       });
 
       // Saves the board, then streams the run as server-sent events: `progress` lines, then one `done` result.
-      // One run at a time; closing the page stops its agent.
-      let running = false;
+      // One run at a time; Cancel or closing the page stops its agent.
+      let current: AbortController | null = null;
+      server.middlewares.use("/api/generate/cancel", (req, res) => {
+        if (req.method !== "POST") return send(res, 405, { error: "use POST" });
+        current?.abort();
+        send(res, 200, { cancelled: current !== null });
+      });
+
+      // Opens a finished run's folder in the desktop's file manager.
+      server.middlewares.use("/api/open", async (req, res) => {
+        try {
+          const { runDir } = (await readJson(req)) as { runDir: string };
+          if (typeof runDir !== "string" || !isRunDir(runDir)) throw new Error("not a scaffold run folder");
+          const opener = process.platform === "darwin" ? "open" : process.platform === "win32" ? "explorer" : "xdg-open";
+          spawn(opener, [runDir], { detached: true, stdio: "ignore" }).on("error", () => {}).unref();
+          send(res, 200, { opened: runDir });
+        } catch (e) {
+          send(res, 400, { error: (e as Error).message });
+        }
+      });
+
       server.middlewares.use("/api/generate", async (req, res) => {
-        if (running) return send(res, 409, { error: "a generation is already running" });
+        if (current) return send(res, 409, { error: "a generation is already running" });
         let path: string, board, lang: Lang;
         try {
           path = boardPath(req);
@@ -81,8 +101,8 @@ function api(): Plugin {
         } catch (e) {
           return send(res, 400, { error: (e as Error).message });
         }
-        running = true;
         const controller = new AbortController();
+        current = controller;
         res.on("close", () => controller.abort());
         res.writeHead(200, { "Content-Type": "text/event-stream", "Cache-Control": "no-cache" });
         const emit = (event: string, data: unknown) => res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
@@ -99,7 +119,7 @@ function api(): Plugin {
         } catch (e) {
           emit("done", failedResult((e as Error).message));
         } finally {
-          running = false;
+          current = null;
         }
         res.end();
       });

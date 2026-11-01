@@ -125,6 +125,12 @@ export function App() {
   };
 
   // Saves the board, then reads the server-sent events of the run as they arrive.
+  const cancelRun = () => fetch("/api/generate/cancel", { method: "POST" });
+  const openRunDir = async (runDir: string) => {
+    const res = await fetch("/api/open", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ runDir }) });
+    if (!res.ok) setStatus({ ok: false, msg: (await res.json()).error });
+  };
+
   const runGenerate = async () => {
     setRun({ running: true, progress: [] });
     const failed = (message: string) => setRun((r) => ({ running: false, progress: r?.progress ?? [], result: failedResult(message) }));
@@ -183,6 +189,11 @@ export function App() {
         <button className="btn btn--sm btn--primary" onClick={runGenerate} disabled={run?.running}>
           {run?.running ? "Generating…" : "Generate"}
         </button>
+        {run?.running && (
+          <button className="btn btn--sm btn--danger" onClick={cancelRun}>
+            Cancel
+          </button>
+        )}
         {status && (
           <span role="status" className={`chip ${status.ok ? "chip--ok" : "chip--err"}`}>
             {status.msg}
@@ -251,22 +262,41 @@ export function App() {
           )}
           <pre aria-label="Architecture file preview">{arch}</pre>
         </section>
-        {run && <RunPanel run={run} onFocus={focusBlock} nameOf={nameOf} />}
+        {run && <RunPanel run={run} onFocus={focusBlock} nameOf={nameOf} onOpen={openRunDir} />}
       </aside>
     </div>
   );
 }
 
-function RunPanel({ run, onFocus, nameOf }: { run: Run; onFocus: (id: string) => void; nameOf: (id: string) => string }) {
+function RunPanel({
+  run,
+  onFocus,
+  nameOf,
+  onOpen,
+}: {
+  run: Run;
+  onFocus: (id: string) => void;
+  nameOf: (id: string) => string;
+  onOpen: (runDir: string) => void;
+}) {
   const r = run.result;
   return (
     <section className="glass run" aria-label="Generation run">
       <div className="run-head">
         <span className="label">Run</span>
         {run.running && <span className="chip chip--accent">running</span>}
-        {r && <span className={`chip ${r.ok ? "chip--ok" : "chip--err"}`}>{r.ok ? "verified" : "failed"}</span>}
+        {r && (
+          <span className={`chip ${r.ok ? "chip--ok" : r.cancelled ? "" : "chip--err"}`}>{r.ok ? "verified" : r.cancelled ? "cancelled" : "failed"}</span>
+        )}
       </div>
-      {r?.runDir && <p className="meta run-dir">{r.runDir}</p>}
+      {r?.runDir && (
+        <p className="meta run-dir">
+          {r.runDir}{" "}
+          <button className="btn btn--sm btn--link" onClick={() => onOpen(r.runDir)}>
+            Open folder
+          </button>
+        </p>
+      )}
       {r && r.errors.length > 0 && (
         <ul className="run-errors" aria-label="Errors">
           {r.errors.map((e, i) => (
