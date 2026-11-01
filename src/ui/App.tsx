@@ -4,7 +4,7 @@ import { canContain, newBlock, newId, type Block, type Edge, type Kind, type Lan
 import { serialize } from "../serialize";
 import { failedResult, type GenerateResult } from "../run";
 import { GENERATORS } from "../prompts";
-import { BlockErrors, KIND_LABELS, fromNodes, isContainer, nodeTypes, parentsFirst, toFlowEdge, toNode, toNodes, type BlockNode, type LinkEdge } from "./nodes";
+import { BlockErrors, BlockWarnings, KIND_LABELS, fromNodes, isContainer, nodeTypes, parentsFirst, toFlowEdge, toNode, toNodes, type BlockNode, type LinkEdge } from "./nodes";
 import { EdgeInspector, Inspector } from "./Inspector";
 
 type Run = { running: boolean; progress: string[]; result?: GenerateResult };
@@ -24,7 +24,17 @@ export function App() {
   const [lang, setLang] = useState<Lang>("python");
   const [run, setRun] = useState<Run | null>(null);
   const board = useMemo(() => fromNodes(nodes, name, edges), [nodes, name, edges]);
-  const arch = useMemo(() => serialize(board).arch, [board]);
+  const { arch, warnings } = useMemo(() => serialize(board, lang), [board, lang]);
+  const blockWarnings = useMemo(() => {
+    const byBlock = new Map<string, string[]>();
+    for (const w of warnings) if (w.blockId) byBlock.set(w.blockId, [...(byBlock.get(w.blockId) ?? []), w.message]);
+    return byBlock;
+  }, [warnings]);
+  // Edges carrying a warning get a ⚠ in their label for as long as the language warns about them.
+  const shownEdges = useMemo(() => {
+    const warned = new Set(warnings.map((w) => w.edgeId));
+    return flowEdges.map((e) => (warned.has(e.id) ? { ...e, label: `⚠ ${e.label}`, className: "edge--warned" } : e));
+  }, [flowEdges, warnings]);
   const selected = nodes.find((n) => n.selected);
   const blockErrors = useMemo(() => {
     const counts = new Map<string, number>();
@@ -97,6 +107,7 @@ export function App() {
     const body = await res.json();
     if (!res.ok) return setStatus({ ok: false, msg: body.error });
     setName(body.name);
+    setRun(null); // the last run's errors belong to the previous board
     setFlowEdges(body.edges.map((e: Edge) => toFlowEdge(e)));
     setNodes(toNodes(body));
     setStatus({ ok: true, msg: `opened ${path}` });
@@ -190,9 +201,10 @@ export function App() {
 
       <main className="canvas">
         <BlockErrors.Provider value={blockErrors}>
+        <BlockWarnings.Provider value={blockWarnings}>
         <ReactFlow
           nodes={nodes}
-          edges={flowEdges}
+          edges={shownEdges}
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
           onConnect={onConnect}
@@ -207,6 +219,7 @@ export function App() {
           <Background gap={24} />
           <Controls />
         </ReactFlow>
+        </BlockWarnings.Provider>
         </BlockErrors.Provider>
       </main>
 
@@ -229,6 +242,13 @@ export function App() {
         </section>
         <section className="glass preview">
           <div className="label">Architecture file</div>
+          {warnings.length > 0 && (
+            <ul className="warnings" aria-label={`Warnings for ${GENERATORS[lang]?.label ?? lang}`}>
+              {warnings.map((w) => (
+                <li key={w.edgeId ?? w.blockId}>⚠ {w.message}</li>
+              ))}
+            </ul>
+          )}
           <pre aria-label="Architecture file preview">{arch}</pre>
         </section>
         {run && <RunPanel run={run} onFocus={focusBlock} nameOf={nameOf} />}

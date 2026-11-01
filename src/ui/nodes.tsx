@@ -92,14 +92,22 @@ export function fromNodes(nodes: BlockNode[], name: string, edges: Edge[]): Boar
 
 // How many errors the last run tied to each block id.
 export const BlockErrors = createContext<ReadonlyMap<string, number>>(new Map());
+// Lossy-mapping warnings for the selected language, by block id.
+export const BlockWarnings = createContext<ReadonlyMap<string, string[]>>(new Map());
 
 // The architecture-file line, split into its keyword and the rest, plus the block's error badge.
 function Title({ block }: { block: Block }) {
   const [keyword, ...rest] = blockLine(block).split(" ");
   const errors = useContext(BlockErrors).get(block.id);
+  const warnings = useContext(BlockWarnings).get(block.id);
   return (
     <div className="block-title">
       <span className="kw">{keyword}</span> {rest.join(" ")}
+      {warnings && (
+        <span className="warn-badge" role="img" aria-label={`Warning: ${warnings.join(" ")}`} title={warnings.join("\n")}>
+          ⚠
+        </span>
+      )}
       {errors && (
         <span className="error-badge" role="img" aria-label={`${errors} error${errors > 1 ? "s" : ""} in the last run`}>
           {errors}

@@ -1,10 +1,11 @@
 import { execFile } from "node:child_process";
-import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { join, resolve, sep } from "node:path";
 import { promisify } from "node:util";
 import type { Lang } from "./board";
 import { buildPrompt, generatorFor } from "./prompts";
 import { failedResult, type GenError, type GenerateResult } from "./run";
+import { DEFAULT_MODULE } from "./serialize";
 
 export type { GenError, GenerateResult };
 
@@ -45,7 +46,7 @@ export async function generate({
   signal?: AbortSignal;
 }): Promise<GenerateResult> {
   const prompt = buildPrompt(lang, ARCH_FILE, RESULT_FILE);
-  const langDir = join(outDir, lang);
+  const langDir = join(resolve(outDir), lang);
   mkdirSync(langDir, { recursive: true });
   const runDir = newRunDir(langDir);
   writeFileSync(join(runDir, ARCH_FILE), arch);
@@ -89,33 +90,61 @@ async function runAgent(
   return { ok: checkErrors.length === 0, runDir, files: listFiles(runDir), errors: checkErrors };
 }
 
-// A compiler-style "path:line[:col]:" diagnostic line.
-const DIAGNOSTIC = /^([\w./-]+\.\w+):(\d+)(?::\d+)?:/;
-const ID = /@id\s+(\w+)/;
+// Ids are any non-space run ending in a word character, so "@id f_x." or "@id f_x:" drop the punctuation.
+const ID = /@id\s+([^\s:,;()"']*\w)/;
+// A source location like src/lib.rs:6:5, anywhere in a line.
+const LOCATION = /([\w./-]+\.\w+):(\d+)(?::\d+)?/;
+// A line that starts one diagnostic: "path:line[:col]:" (mypy, gcc) or "error[E0308]:" (rustc).
+const HEADER = /^(?:[\w./-]+\.\w+:\d+(?::\d+)?:|(?:error|warning|note)(?:\[\w+\])?:)/;
+
+// Splits checker output into one message per error that has a source location; warnings and
+// "could not compile" summaries are dropped. Undefined when the output holds no located error.
+function diagnostics(text: string): string[] | undefined {
+  const chunks: string[][] = [];
+  for (const line of text.split("\n")) {
+    if (HEADER.test(line)) chunks.push([line]);
+    else chunks.at(-1)?.push(line);
+  }
+  const located = chunks
+    .filter(([head]) => !/^(warning|note)(\[\w+\])?:|: (warning|note):|^error: (could not compile|aborting)/.test(head))
+    .map((chunk) => ({ head: chunk[0], where: LOCATION.exec(chunk.join("\n"))?.[0] }))
+    .filter((c) => c.where);
+  if (!located.length) return;
+  // rustc puts the location on a later "-->" line; carry it into the one-line message.
+  return located.map(({ head, where }) => (head.includes(where!) ? head : `${head} (${where})`));
+}
 
 // Ties each error to the board block it is about: the agent's blockId, an "@id x" in the message, or for a
 // file:line diagnostic the nearest "@id" comment above that line in the generated code. Checker output is split
 // into one error per diagnostic. Ids that are not on the board are dropped.
 function attribute(runDir: string, arch: string, errors: GenError[]): GenError[] {
-  const known = new Set([...arch.matchAll(new RegExp(ID, "g"))].map((m) => m[1]));
+  // The board's ids, minus the synthetic default module, which has no block to point at.
+  const known = new Set([...arch.matchAll(new RegExp(ID, "g"))].map((m) => m[1]).filter((id) => id !== DEFAULT_MODULE.id));
+  const onBoard = (id: string | undefined) => (id && known.has(id) ? id : undefined);
   return errors
     .flatMap((e) => {
-      const diagnostics = e.message.split("\n").filter((line) => DIAGNOSTIC.test(line));
-      return !e.blockId && diagnostics.length ? diagnostics.map((message): GenError => ({ message })) : [e];
+      const split = e.blockId ? undefined : diagnostics(e.message);
+      return split ? split.map((message): GenError => ({ message })) : [e];
     })
     .map((e) => {
-      const id = e.blockId ?? ID.exec(e.message)?.[1] ?? idAbove(runDir, e.message);
-      return id && known.has(id) ? { blockId: id, message: e.message } : { message: e.message };
+      const id = onBoard(e.blockId) ?? onBoard(ID.exec(e.message)?.[1]) ?? onBoard(idAbove(runDir, e.message));
+      return id ? { blockId: id, message: e.message } : { message: e.message };
     });
 }
 
 // ponytail: the nearest @id above a line can be a sibling when the error is in module-level code between
 // definitions; good enough to point at the right area of the board.
 function idAbove(runDir: string, message: string): string | undefined {
-  const [, path, line] = DIAGNOSTIC.exec(message) ?? [];
+  const [, path, line] = LOCATION.exec(message) ?? [];
   if (!path) return;
-  const file = resolve(runDir, path);
-  if (!file.startsWith(runDir + sep) || !existsSync(file)) return;
+  let file: string;
+  try {
+    // realpath, so a symlink the agent made can't point the read outside the run folder.
+    file = realpathSync(resolve(runDir, path));
+    if (!file.startsWith(realpathSync(runDir) + sep) || !statSync(file).isFile() || statSync(file).size > 2_000_000) return;
+  } catch {
+    return;
+  }
   const lines = readFileSync(file, "utf8").split("\n");
   for (let i = Math.min(Number(line), lines.length) - 1; i >= 0; i--) {
     const id = ID.exec(lines[i])?.[1];

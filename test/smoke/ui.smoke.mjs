@@ -89,6 +89,14 @@ try {
   await runPanel.getByRole("button", { name: "HTTP client" }).click();
   assert.equal(await page.getByLabel("Name", { exact: true }).inputValue(), "HTTP client");
   await page.unroute("**/api/generate**");
+  // The next successful run clears the badges.
+  await page.route("**/api/generate**", (route) =>
+    route.fulfill({ status: 200, contentType: "text/event-stream", body: `event: done\ndata: ${JSON.stringify({ ok: true, runDir: "/tmp/run", files: [], errors: [] })}\n\n` }),
+  );
+  await page.getByRole("button", { name: "Generate" }).click();
+  await runPanel.getByText("verified").waitFor();
+  assert.equal(await page.locator(".error-badge").count(), 0);
+  await page.unroute("**/api/generate**");
 
   // Opt-in: Generate through the UI with the real agent (SCAFFOLD_AGENT_SMOKE=1).
   if (process.env.SCAFFOLD_AGENT_SMOKE) {
@@ -125,6 +133,14 @@ try {
     await p2.mouse.move(to.x + to.width / 2, to.y + to.height / 2, { steps: 12 });
     await p2.mouse.up();
     assert.match(await dsl(), /^ {4}-> uses HTTP client \(@id l_\w+\) {2}@edge e_\w+$/m, await dsl());
+    // #7: an inherits edge is flagged for Rust only, and the flag follows the language picker.
+    await p2.getByLabel("Relationship").selectOption("inherits");
+    await p2.getByLabel("Target language").selectOption("rust");
+    await p2.getByRole("list", { name: "Warnings for Rust" }).getByText(/Rust has no inheritance/).waitFor();
+    assert.equal(await p2.locator(".react-flow__node-class .warn-badge").count(), 1);
+    assert.match(await p2.locator(".react-flow__edge-text").first().textContent(), /^⚠/);
+    await p2.getByLabel("Target language").selectOption("python");
+    assert.equal(await p2.locator(".warn-badge").count(), 0);
     await p2.getByLabel("Relationship").selectOption("other");
     await p2.getByLabel("Label", { exact: true }).fill("serves pages for");
     assert.match(await dsl(), /-> "serves pages for" HTTP client \(@id l_\w+\)/);
