@@ -34,6 +34,18 @@ describe("board file store", () => {
     expect(loadBoard(path)).toEqual(fixture("edges"));
   });
 
+  it("round-trips a board that targets an existing repository", () => {
+    const path = join(tmp(), "self.scaffold.json");
+    const board = { ...fixture("single-function"), target: { repo: ".", checks: [["npx", "tsc", "--noEmit"], ["npx", "vitest", "run"]] } };
+    saveBoard(path, board);
+    expect(loadBoard(path)).toEqual(board);
+  });
+
+    it("keeps Scaffold's own board valid", () => {
+    const board = loadBoard(new URL("../scaffold.scaffold.json", import.meta.url).pathname);
+    expect(board.target).toEqual({ repo: ".", checks: [["npx", "tsc", "--noEmit"], ["npx", "vitest", "run"]] });
+  });
+
   it("creates the board's folder when it does not exist yet", () => {
     const path = join(tmp(), "boards", "nested", "shop.scaffold.json");
     saveBoard(path, fixture("nested-modules"));
@@ -130,6 +142,16 @@ describe("board file store", () => {
       "label on an edge that is not other",
       JSON.stringify({ version: 1, name: "x", blocks: [{ id: "a", kind: "module", name: "a", position: { x: 0, y: 0 } }], edges: [{ id: "e", source: "a", target: "a", kind: "uses", label: "hm" }] }),
       /only "other" edges have labels/,
+    ],
+    [
+      "target without a repo",
+      JSON.stringify({ version: 1, name: "x", blocks: [], edges: [], target: { checks: [] } }),
+      /target needs a repo path/,
+    ],
+    [
+      "target checks that are not command lists",
+      JSON.stringify({ version: 1, name: "x", blocks: [], edges: [], target: { repo: ".", checks: ["npm test"] } }),
+      /target checks must be commands/,
     ],
   ])("rejects a malformed board file (%s) with a readable error", (_case, contents, message) => {
     const path = join(tmp(), "bad.scaffold.json");

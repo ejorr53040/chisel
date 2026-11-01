@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Background, ConnectionMode, Controls, ReactFlow, useEdgesState, useNodesState, useReactFlow, type Connection } from "@xyflow/react";
-import { canContain, duplicate, newBlock, newId, type Block, type Board, type Edge, type Kind, type Lang } from "../board";
+import { canContain, duplicate, newBlock, newId, type Block, type Board, type Edge, type Kind, type Lang, type Target } from "../board";
 import { serialize } from "../serialize";
 import { failedResult, type GenerateResult } from "../run";
 import { GENERATORS } from "../prompts";
 import { BlockErrors, BlockWarnings, KIND_KEYS, KIND_LABELS, fromNodes, isContainer, nodeTypes, parentsFirst, toFlowEdge, toNode, toNodes, type BlockNode, type LinkEdge } from "./nodes";
-import { EdgeInspector, Inspector } from "./Inspector";
+import { BoardInspector, EdgeInspector, Inspector } from "./Inspector";
 
 type Run = { running: boolean; progress: string[]; result?: GenerateResult };
 
@@ -24,7 +24,11 @@ export function App() {
   const [lang, setLang] = useState<Lang>("python");
   const [run, setRun] = useState<Run | null>(null);
   const [help, setHelp] = useState(false);
-  const board = useMemo(() => fromNodes(nodes, name, edges), [nodes, name, edges]);
+  const [target, setTarget] = useState<Target | undefined>();
+  const board = useMemo(() => {
+    const b = fromNodes(nodes, name, edges);
+    return target ? { ...b, target } : b;
+  }, [nodes, name, edges, target]);
   const { arch, warnings } = useMemo(() => serialize(board, lang), [board, lang]);
   const blockWarnings = useMemo(() => {
     const byBlock = new Map<string, string[]>();
@@ -126,6 +130,7 @@ export function App() {
   // Replaces what's on the canvas with a board, selecting the given block ids.
   const show = (next: Board, select: string[] = []) => {
     setName(next.name);
+    setTarget(next.target);
     setNodes(toNodes(next).map((n) => ({ ...n, selected: select.includes(n.id) })));
     setFlowEdges(next.edges.map((e) => toFlowEdge(e)));
   };
@@ -205,9 +210,13 @@ export function App() {
   };
 
   // Saves the board, then reads the server-sent events of the run as they arrive.
+  // The id from the run's `start` event, so Cancel stops this tab's run and never another's.
+  const runId = useRef<string | null>(null);
   const cancelRun = () => {
     setRun((r) => r && { ...r, progress: [...r.progress, "cancelling…"] });
-    fetch("/api/generate/cancel", { method: "POST" }).catch((e) => setStatus({ ok: false, msg: `cancel failed: ${e.message}` }));
+    fetch("/api/generate/cancel", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ runId: runId.current }) })
+      .then(async (res) => res.ok || setStatus({ ok: false, msg: `cancel failed: ${(await res.json()).error}` }))
+      .catch((e) => setStatus({ ok: false, msg: `cancel failed: ${e.message}` }));
   };
   const openRunDir = async (runDir: string) => {
     const res = await fetch("/api/open", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ runDir }) });
@@ -215,6 +224,7 @@ export function App() {
   };
 
   const runGenerate = async () => {
+    runId.current = null;
     setRun({ running: true, progress: [] });
     const failed = (message: string) => setRun((r) => ({ running: false, progress: r?.progress ?? [], result: failedResult(message) }));
     try {
@@ -235,6 +245,7 @@ export function App() {
         for (const ev of events) {
           const kind = /^event: (\w+)/m.exec(ev)?.[1];
           const data = JSON.parse(/^data: (.*)$/m.exec(ev)?.[1] ?? "null");
+          if (kind === "start") runId.current = data.runId;
           if (kind === "progress") setRun((r) => ({ running: true, progress: [...(r?.progress ?? []), data].slice(-200) }));
           if (kind === "done") setRun((r) => ({ running: false, progress: r?.progress ?? [], result: data }));
         }
@@ -290,6 +301,7 @@ export function App() {
         <button className="btn btn--sm btn--primary" onClick={save}>
           Save
         </button>
+        {!target && (
         <select aria-label="Target language" value={lang} onChange={(e) => setLang(e.target.value as Lang)}>
           {Object.entries(GENERATORS).map(([value, spec]) => (
             <option key={value} value={value}>
@@ -297,8 +309,9 @@ export function App() {
             </option>
           ))}
         </select>
+        )}
         <button className="btn btn--sm btn--primary" onClick={runGenerate} disabled={run?.running}>
-          {run?.running ? "Generating…" : "Generate"}
+          {run?.running ? "Generating…" : target ? "Update repo" : "Generate"}
         </button>
         {run?.running && (
           <button className="btn btn--sm btn--danger" onClick={cancelRun}>
@@ -363,7 +376,7 @@ export function App() {
               onDelete={() => deleteEdge(selectedEdge.id)}
             />
           ) : (
-            <p className="meta">Select a block or edge to edit it. Drag from a block's side handle to another block to connect them.</p>
+            <BoardInspector key={historyEpoch} target={target} onChange={setTarget} />
           )}
         </section>
         <section className="glass preview">
@@ -404,6 +417,7 @@ function RunPanel({
           <span className={r.ok ? "chip chip--ok" : r.cancelled ? "chip" : "chip chip--err"}>{r.ok ? "verified" : r.cancelled ? "cancelled" : "failed"}</span>
         )}
       </div>
+      {r?.branch && <p className="meta">on branch {r.branch}</p>}
       {r?.runDir && (
         <p className="meta run-dir">
           {r.runDir}{" "}

@@ -1,0 +1,586 @@
+{
+  "version": 1,
+  "name": "scaffold",
+  "blocks": [
+    {
+      "id": "m_board",
+      "kind": "module",
+      "name": "board",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "size": {
+        "width": 380,
+        "height": 508
+      },
+      "notes": "The board model shared by the UI and the server (src/board.ts)."
+    },
+    {
+      "id": "m_serialize",
+      "kind": "module",
+      "name": "serialize",
+      "position": {
+        "x": 420,
+        "y": 0
+      },
+      "size": {
+        "width": 380,
+        "height": 316
+      },
+      "notes": "The board → architecture file renderer (src/serialize.ts); grammar in docs/adr/0001."
+    },
+    {
+      "id": "m_store",
+      "kind": "module",
+      "name": "store",
+      "position": {
+        "x": 840,
+        "y": 0
+      },
+      "size": {
+        "width": 380,
+        "height": 252
+      },
+      "notes": "Board files on disk (src/store.ts)."
+    },
+    {
+      "id": "m_generate",
+      "kind": "module",
+      "name": "generate",
+      "position": {
+        "x": 1260,
+        "y": 0
+      },
+      "size": {
+        "width": 380,
+        "height": 316
+      },
+      "notes": "Runs the agent and judges its work (src/generate.ts)."
+    },
+    {
+      "id": "m_claude",
+      "kind": "module",
+      "name": "claude",
+      "position": {
+        "x": 0,
+        "y": 520
+      },
+      "size": {
+        "width": 380,
+        "height": 124
+      },
+      "notes": "The real agent runner (src/claude.ts)."
+    },
+    {
+      "id": "m_prompts",
+      "kind": "module",
+      "name": "prompts",
+      "position": {
+        "x": 420,
+        "y": 520
+      },
+      "size": {
+        "width": 380,
+        "height": 252
+      },
+      "notes": "Per-language agent instructions (src/prompts.ts)."
+    },
+    {
+      "id": "m_server",
+      "kind": "module",
+      "name": "server",
+      "position": {
+        "x": 840,
+        "y": 520
+      },
+      "size": {
+        "width": 380,
+        "height": 316
+      },
+      "notes": "The local API, as a Vite dev-server plugin (vite.config.ts). Every /api call must come from the app's own origin."
+    },
+    {
+      "id": "m_ui",
+      "kind": "module",
+      "name": "ui",
+      "position": {
+        "x": 1260,
+        "y": 520
+      },
+      "size": {
+        "width": 380,
+        "height": 316
+      },
+      "notes": "The React + React Flow interface (src/ui)."
+    },
+    {
+      "id": "t_board",
+      "kind": "type",
+      "name": "Board",
+      "shape": "struct",
+      "members": [
+        "version: 1",
+        "name: string",
+        "blocks: Block[]",
+        "edges: Edge[]",
+        "target?: Target"
+      ],
+      "parentId": "m_board",
+      "position": {
+        "x": 16,
+        "y": 48
+      }
+    },
+    {
+      "id": "t_target",
+      "kind": "type",
+      "name": "Target",
+      "shape": "struct",
+      "members": [
+        "repo: string (relative to the board file)",
+        "checks: string[][]"
+      ],
+      "parentId": "m_board",
+      "position": {
+        "x": 16,
+        "y": 112
+      }
+    },
+    {
+      "id": "k_kinds",
+      "kind": "constant",
+      "name": "BLOCK_KINDS",
+      "type": "Kind[]",
+      "value": "entry, library, service, constant, type, interface, class, field, function, module",
+      "parentId": "m_board",
+      "position": {
+        "x": 16,
+        "y": 176
+      }
+    },
+    {
+      "id": "k_edges",
+      "kind": "constant",
+      "name": "EDGE_KINDS",
+      "type": "EdgeKind[]",
+      "value": "inherits, implements, imports, uses, calls, returns, emits, handles, other",
+      "parentId": "m_board",
+      "position": {
+        "x": 16,
+        "y": 240
+      }
+    },
+    {
+      "id": "f_newblock",
+      "kind": "function",
+      "name": "newBlock",
+      "signature": "(kind, position) -> Block",
+      "intent": "Creates a block of the kind with a fresh id and sensible empty fields.",
+      "steps": [],
+      "parentId": "m_board",
+      "position": {
+        "x": 16,
+        "y": 304
+      }
+    },
+    {
+      "id": "f_contain",
+      "kind": "function",
+      "name": "canContain",
+      "signature": "(parent kind, child kind) -> bool",
+      "intent": "Says whether a container kind may hold a child kind: modules hold anything, classes hold const/type/field/fn, interfaces hold fn.",
+      "steps": [],
+      "parentId": "m_board",
+      "position": {
+        "x": 16,
+        "y": 368
+      }
+    },
+    {
+      "id": "f_dup",
+      "kind": "function",
+      "name": "duplicate",
+      "signature": "(board, ids) -> { board, copies }",
+      "intent": "Copies the chosen blocks with everything inside them under fresh ids, plus edges between copied blocks; top-level copies are nudged.",
+      "steps": [],
+      "parentId": "m_board",
+      "position": {
+        "x": 16,
+        "y": 432
+      }
+    },
+    {
+      "id": "f_serialize",
+      "kind": "function",
+      "name": "serialize",
+      "signature": "(board, lang?) -> { arch, warnings }",
+      "intent": "Renders the board as the deterministic architecture file and lists lossy-mapping warnings for the language.",
+      "steps": [],
+      "parentId": "m_serialize",
+      "position": {
+        "x": 16,
+        "y": 48
+      }
+    },
+    {
+      "id": "f_sig",
+      "kind": "function",
+      "name": "signatureText",
+      "signature": "(signature) -> string",
+      "intent": "Normalises a loose signature so its parameter list is always parenthesised.",
+      "steps": [],
+      "parentId": "m_serialize",
+      "position": {
+        "x": 16,
+        "y": 112
+      }
+    },
+    {
+      "id": "f_verb",
+      "kind": "function",
+      "name": "edgeVerb",
+      "signature": "(edge) -> string",
+      "intent": "Names an edge by its kind, or by its label for a labelled other edge.",
+      "steps": [],
+      "parentId": "m_serialize",
+      "position": {
+        "x": 16,
+        "y": 176
+      }
+    },
+    {
+      "id": "f_line",
+      "kind": "function",
+      "name": "blockLine",
+      "signature": "(block) -> string",
+      "intent": "Renders one block's line without indent or @id.",
+      "steps": [],
+      "parentId": "m_serialize",
+      "position": {
+        "x": 16,
+        "y": 240
+      }
+    },
+    {
+      "id": "f_load",
+      "kind": "function",
+      "name": "loadBoard",
+      "signature": "(path) -> Board",
+      "intent": "Reads and validates a board file, failing with a readable error.",
+      "steps": [],
+      "parentId": "m_store",
+      "position": {
+        "x": 16,
+        "y": 48
+      }
+    },
+    {
+      "id": "f_save",
+      "kind": "function",
+      "name": "saveBoard",
+      "signature": "(path, board)",
+      "intent": "Validates and writes the board file and its derived .arch.md next to it, creating the folder.",
+      "steps": [],
+      "parentId": "m_store",
+      "position": {
+        "x": 16,
+        "y": 112
+      }
+    },
+    {
+      "id": "f_validate",
+      "kind": "function",
+      "name": "validate",
+      "signature": "(data) -> Board",
+      "intent": "Checks everything the serializer and UI rely on: version, kinds and their fields, containment, cycles, edges, target.",
+      "steps": [],
+      "parentId": "m_store",
+      "position": {
+        "x": 16,
+        "y": 176
+      }
+    },
+    {
+      "id": "f_generate",
+      "kind": "function",
+      "name": "generate",
+      "signature": "({ arch, lang, outDir, runner, verify?, onProgress?, signal? }) -> GenerateResult",
+      "intent": "Runs the agent in a fresh out/<lang>/<timestamp> folder, re-checks its claim with the language's checks, ties errors to blocks and prunes old runs.",
+      "steps": [],
+      "parentId": "m_generate",
+      "position": {
+        "x": 16,
+        "y": 48
+      }
+    },
+    {
+      "id": "f_update",
+      "kind": "function",
+      "name": "update",
+      "signature": "({ arch, repo, checks, runner, verify?, boardFiles?, onProgress?, signal? }) -> GenerateResult",
+      "intent": "Updates an existing clean repository in place on a new scaffold/<timestamp> branch, verifies with its own checks and reports the changed files.",
+      "steps": [],
+      "parentId": "m_generate",
+      "position": {
+        "x": 16,
+        "y": 112
+      }
+    },
+    {
+      "id": "f_checks",
+      "kind": "function",
+      "name": "runChecks",
+      "signature": "(runDir, lang, signal) -> GenError[]",
+      "intent": "Runs the language's check commands, returning their output as errors when one fails.",
+      "steps": [],
+      "parentId": "m_generate",
+      "position": {
+        "x": 16,
+        "y": 176
+      }
+    },
+    {
+      "id": "f_isrun",
+      "kind": "function",
+      "name": "isRunDir",
+      "signature": "(path) -> bool",
+      "intent": "True only for folders generate() made.",
+      "steps": [],
+      "parentId": "m_generate",
+      "position": {
+        "x": 16,
+        "y": 240
+      }
+    },
+    {
+      "id": "f_runner",
+      "kind": "function",
+      "name": "claudeRunner",
+      "signature": "(job) -> { exitCode, output }",
+      "intent": "Runs claude -p with the prompt on stdin, auto-accepting edits in the working folder and only the allowed tools, streaming progress and stopping on abort.",
+      "steps": [],
+      "parentId": "m_claude",
+      "position": {
+        "x": 16,
+        "y": 48
+      }
+    },
+    {
+      "id": "k_gen",
+      "kind": "constant",
+      "name": "GENERATORS",
+      "type": "Record<Lang, LangSpec>",
+      "value": "python, rust, cpp",
+      "parentId": "m_prompts",
+      "position": {
+        "x": 16,
+        "y": 48
+      }
+    },
+    {
+      "id": "f_prompt",
+      "kind": "function",
+      "name": "buildPrompt",
+      "signature": "(lang, archFile, resultFile) -> string",
+      "intent": "Writes the instructions for generating a fresh project in the language.",
+      "steps": [],
+      "parentId": "m_prompts",
+      "position": {
+        "x": 16,
+        "y": 112
+      }
+    },
+    {
+      "id": "f_uprompt",
+      "kind": "function",
+      "name": "buildUpdatePrompt",
+      "signature": "(archFile, resultFile, checks) -> string",
+      "intent": "Writes the instructions for updating an existing project to match its architecture file.",
+      "steps": [],
+      "parentId": "m_prompts",
+      "position": {
+        "x": 16,
+        "y": 176
+      }
+    },
+    {
+      "id": "e_board",
+      "kind": "entry",
+      "name": "board",
+      "trigger": "http",
+      "detail": "GET/POST /api/board?path=… loads or saves a board file",
+      "parentId": "m_server",
+      "position": {
+        "x": 16,
+        "y": 48
+      }
+    },
+    {
+      "id": "e_gen",
+      "kind": "entry",
+      "name": "generate",
+      "trigger": "http",
+      "detail": "POST /api/generate?path=… saves the board, then streams progress and one done result as SSE; one run at a time",
+      "parentId": "m_server",
+      "position": {
+        "x": 16,
+        "y": 112
+      }
+    },
+    {
+      "id": "e_cancel",
+      "kind": "entry",
+      "name": "cancel",
+      "trigger": "http",
+      "detail": "POST /api/generate/cancel with { runId } aborts the current run only when runId names it",
+      "parentId": "m_server",
+      "position": {
+        "x": 16,
+        "y": 176
+      },
+      "notes": "Cancel must only abort the run it names, so a Cancel from one tab can never stop another tab's run. /api/generate sends a first `start` SSE event carrying a fresh run id; the UI keeps it and its Cancel posts { runId }; a cancel whose runId is not the current run's answers 409 and aborts nothing. Add a unit test for the id check."
+    },
+    {
+      "id": "e_open",
+      "kind": "entry",
+      "name": "open",
+      "trigger": "http",
+      "detail": "POST /api/open opens a finished run folder in the file manager",
+      "parentId": "m_server",
+      "position": {
+        "x": 16,
+        "y": 240
+      }
+    },
+    {
+      "id": "f_app",
+      "kind": "function",
+      "name": "App",
+      "signature": "()",
+      "intent": "The editor: palette, canvas with nesting and edges, inspector, live architecture file, generate/run panel, undo/redo and shortcuts.",
+      "steps": [],
+      "parentId": "m_ui",
+      "position": {
+        "x": 16,
+        "y": 48
+      }
+    },
+    {
+      "id": "f_insp",
+      "kind": "function",
+      "name": "Inspector",
+      "signature": "({ block, onChange })",
+      "intent": "Edits a block's kind-specific fields and notes.",
+      "steps": [],
+      "parentId": "m_ui",
+      "position": {
+        "x": 16,
+        "y": 112
+      }
+    },
+    {
+      "id": "f_binsp",
+      "kind": "function",
+      "name": "BoardInspector",
+      "signature": "({ target, onChange })",
+      "intent": "Edits where Generate sends the board: a new project, or an existing repository with its check commands.",
+      "steps": [],
+      "parentId": "m_ui",
+      "position": {
+        "x": 16,
+        "y": 176
+      }
+    },
+    {
+      "id": "f_runpanel",
+      "kind": "function",
+      "name": "RunPanel",
+      "signature": "({ run, onFocus, nameOf, onOpen })",
+      "intent": "Shows a run's status, branch, folder, errors linked to their blocks, files and live progress.",
+      "steps": [],
+      "parentId": "m_ui",
+      "position": {
+        "x": 16,
+        "y": 240
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e_s1",
+      "source": "m_store",
+      "target": "m_serialize",
+      "kind": "uses"
+    },
+    {
+      "id": "e_s2",
+      "source": "m_generate",
+      "target": "m_prompts",
+      "kind": "uses"
+    },
+    {
+      "id": "e_s3",
+      "source": "e_gen",
+      "target": "f_generate",
+      "kind": "calls"
+    },
+    {
+      "id": "e_s4",
+      "source": "e_gen",
+      "target": "f_update",
+      "kind": "calls"
+    },
+    {
+      "id": "e_s5",
+      "source": "e_gen",
+      "target": "f_runner",
+      "kind": "uses"
+    },
+    {
+      "id": "e_s6",
+      "source": "e_board",
+      "target": "f_load",
+      "kind": "calls"
+    },
+    {
+      "id": "e_s7",
+      "source": "e_board",
+      "target": "f_save",
+      "kind": "calls"
+    },
+    {
+      "id": "e_s8",
+      "source": "m_ui",
+      "target": "f_serialize",
+      "kind": "uses"
+    },
+    {
+      "id": "e_s9",
+      "source": "f_app",
+      "target": "e_gen",
+      "kind": "calls"
+    },
+    {
+      "id": "e_s10",
+      "source": "e_open",
+      "target": "f_isrun",
+      "kind": "calls"
+    }
+  ],
+  "target": {
+    "repo": ".",
+    "checks": [
+      [
+        "npx",
+        "tsc",
+        "--noEmit"
+      ],
+      [
+        "npx",
+        "vitest",
+        "run"
+      ]
+    ]
+  }
+}

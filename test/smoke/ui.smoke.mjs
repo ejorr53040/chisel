@@ -232,6 +232,13 @@ try {
     p4.on("pageerror", (e) => errors.push(e.message));
     await p4.goto(url);
     const dsl = () => p4.getByLabel("Architecture file preview").textContent();
+    // #20: with nothing selected, the Board panel switches Generate to updating an existing repository.
+    await p4.getByLabel("Generate into").selectOption("existing repository");
+    await p4.getByLabel("Check commands, one per line").fill("npx tsc --noEmit\nnpx vitest run");
+    assert.equal(await p4.getByLabel("Target language").count(), 0);
+    await p4.getByRole("button", { name: "Update repo" }).waitFor();
+    await p4.getByLabel("Generate into").selectOption("new project");
+    await p4.getByRole("button", { name: "Generate", exact: true }).waitFor();
     await p4.getByRole("button", { name: "+ Module" }).click();
     await p4.getByRole("button", { name: "+ Function" }).click();
     const fn = await p4.locator(".react-flow__node-function").boundingBox();

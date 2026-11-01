@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmSync,
 import { join, resolve, sep } from "node:path";
 import { promisify } from "node:util";
 import type { Lang } from "./board";
-import { buildPrompt, generatorFor } from "./prompts";
+import { allowedTools, buildPrompt, buildUpdatePrompt, generatorFor, updateTools } from "./prompts";
 import { failedResult, type GenError, type GenerateResult } from "./run";
 import { DEFAULT_MODULE } from "./serialize";
 
@@ -12,7 +12,7 @@ export type { GenError, GenerateResult };
 export type Runner = (job: {
   prompt: string;
   cwd: string;
-  lang: Lang;
+  tools: string[]; // allowedTools patterns
   onProgress: (line: string) => void;
   signal: AbortSignal;
 }) => Promise<{ exitCode: number; output: string }>;
@@ -75,29 +75,108 @@ async function runAgent(
   onProgress: (line: string) => void,
   signal: AbortSignal,
 ): Promise<GenerateResult> {
-  const { exitCode, output } = await runner({ prompt, cwd: runDir, lang, onProgress, signal });
-  const failed = (message: string) => failedResult(message, runDir, listFiles(runDir));
+  const { exitCode, output } = await runner({ prompt, cwd: runDir, tools: allowedTools(lang), onProgress, signal });
+  return judge(runDir, () => listFiles(runDir), RESULT_FILE, exitCode, output, () => verify(runDir, lang, signal), onProgress, signal);
+}
 
+// Turns a finished agent run into a result: its exit, its own claim, then our re-check of that claim.
+async function judge(
+  dir: string,
+  files: () => string[],
+  resultFile: string,
+  exitCode: number,
+  output: string,
+  recheck: () => Promise<GenError[]>,
+  onProgress: (line: string) => void,
+  signal: AbortSignal,
+): Promise<GenerateResult> {
+  const failed = (message: string) => failedResult(message, dir, files());
   if (signal.aborted) return { ...failed("run cancelled"), cancelled: true };
   if (exitCode !== 0) return failed(`agent exited with code ${exitCode}:\n${output.slice(-2000)}`);
-  const resultPath = join(runDir, RESULT_FILE);
-  if (!existsSync(resultPath)) return failed(`agent finished without writing ${RESULT_FILE}`);
+  const resultPath = join(dir, resultFile);
+  if (!existsSync(resultPath)) return failed(`agent finished without writing ${resultFile}`);
   let claimed: { ok: boolean; errors: GenError[] };
   try {
     claimed = JSON.parse(readFileSync(resultPath, "utf8"));
     if (typeof claimed?.ok !== "boolean" || !Array.isArray(claimed.errors) || claimed.errors.some((e) => typeof e?.message !== "string"))
       throw new Error();
   } catch {
-    return failed(`agent wrote a malformed ${RESULT_FILE}`);
+    return failed(`agent wrote a malformed ${resultFile}`);
   }
   const errors = claimed.errors.map((e) => (typeof e.blockId === "string" && e.blockId ? { blockId: e.blockId, message: e.message } : { message: e.message }));
-  if (!claimed.ok) return { ok: false, runDir, files: listFiles(runDir), errors };
+  if (!claimed.ok) return { ok: false, runDir: dir, files: files(), errors };
   // The agent says it verified; check for ourselves before calling the run verified.
   onProgress("re-checking the project");
-  const checkErrors = await verify(runDir, lang, signal);
+  const checkErrors = await recheck();
   if (signal.aborted) return { ...failed("run cancelled"), cancelled: true };
-  return { ok: checkErrors.length === 0, runDir, files: listFiles(runDir), errors: checkErrors };
+  return { ok: checkErrors.length === 0, runDir: dir, files: files(), errors: checkErrors };
 }
+
+const git = (repo: string, ...args: string[]) => exec("git", ["-C", repo, ...args]).then((r) => r.stdout.trim());
+// Scratch files the agent reads and writes in the repository; hidden from git and removed afterwards.
+const UPDATE_ARCH = ".scaffold-architecture.arch.md";
+const UPDATE_RESULT = ".scaffold-result.json";
+
+// Updates an existing repository in place so it matches the architecture file. The repository must have no
+// uncommitted changes (the board's own files excepted) and the agent works on a new branch, so every change
+// is reviewable and can be thrown away with git.
+export async function update({
+  arch,
+  repo,
+  checks,
+  runner,
+  verify = (dir, _lang, signal) => runCommands(dir, checks, signal),
+  boardFiles = [],
+  onProgress = () => {},
+  signal = new AbortController().signal,
+}: {
+  arch: string;
+  repo: string;
+  checks: string[][];
+  runner: Runner;
+  verify?: Verifier;
+  boardFiles?: string[]; // repo-relative paths that may be dirty: the board and its architecture file
+  onProgress?: (line: string) => void;
+  signal?: AbortSignal;
+}): Promise<GenerateResult> {
+  const root = await git(repo, "rev-parse", "--show-toplevel").catch(() => "");
+  if (!root || realpathSync(root) !== realpathSync(repo)) throw new Error(`${repo} is not the root of a git repository`);
+  const dirty = (await statusPaths(repo)).filter((path) => !boardFiles.includes(path));
+  if (dirty.length) throw new Error(`${repo} has uncommitted changes: ${dirty.join(", ")}. Commit or stash them first.`);
+
+  const branch = `scaffold/${new Date().toISOString().replace(/[:.]/g, "-")}`;
+  await git(repo, "switch", "-q", "-c", branch);
+  onProgress(`working on branch ${branch}`);
+  const exclude = join(root, ".git", "info", "exclude");
+  mkdirSync(join(exclude, ".."), { recursive: true });
+  const excluded = existsSync(exclude) ? readFileSync(exclude, "utf8") : "";
+  if (!excluded.includes(UPDATE_ARCH)) writeFileSync(exclude, `${excluded.trimEnd()}\n${UPDATE_ARCH}\n${UPDATE_RESULT}\n`.trimStart());
+  writeFileSync(join(repo, UPDATE_ARCH), arch);
+
+  let changed: string[] = [];
+  const files = () => changed;
+  try {
+    const prompt = buildUpdatePrompt(UPDATE_ARCH, UPDATE_RESULT, checks);
+    const { exitCode, output } = await runner({ prompt, cwd: repo, tools: updateTools(checks), onProgress, signal });
+    changed = await changedFiles(repo, boardFiles);
+    const result = await judge(repo, files, UPDATE_RESULT, exitCode, output, () => verify(repo, "python", signal), onProgress, signal);
+    changed = await changedFiles(repo, boardFiles);
+    return { ...result, files: changed, branch, errors: attribute(repo, arch, result.errors) };
+  } finally {
+    rmSync(join(repo, UPDATE_ARCH), { force: true });
+    rmSync(join(repo, UPDATE_RESULT), { force: true });
+  }
+}
+
+// Paths with uncommitted changes. Not trimmed: each porcelain line starts with a two-column status.
+const statusPaths = async (repo: string) =>
+  (await exec("git", ["-C", repo, "status", "--porcelain", "--untracked-files=all"])).stdout
+    .split("\n")
+    .filter(Boolean)
+    .map((line) => line.slice(3));
+
+const changedFiles = async (repo: string, boardFiles: string[]) =>
+  (await statusPaths(repo)).filter((path) => !boardFiles.includes(path) && path !== UPDATE_ARCH && path !== UPDATE_RESULT).sort();
 
 // Ids are any non-space run ending in a word character, so "@id f_x." or "@id f_x:" drop the punctuation.
 const ID = /@id\s+([^\s:,;()"']*\w)/;
@@ -107,7 +186,7 @@ const LOCATION = /([\w./-]+\.\w+):(\d+)(?::\d+)?/;
 // GNU ld's "file.cpp:(.text+0x5): undefined reference" or lld's "ld.lld: error:". gcc's "required from
 // here" backtrace lines are not headers.
 const HEADER =
-  /^(?:[\w./-]+\.\w+:\d+(?::\d+)?: (?:fatal )?error|(?:error|warning|note)(?:\[\w+\])?:|\S+:\(\.[\w.$]+\+0x[0-9a-f]+\): undefined reference|\S*ld(?:\.lld)?: error:)/;
+  /^(?:[\w./-]+\.\w+:\d+(?::\d+)?(?:: (?:fatal )?error| - error)|(?:error|warning|note)(?:\[\w+\])?:|\S+:\(\.[\w.$]+\+0x[0-9a-f]+\): undefined reference|\S*ld(?:\.lld)?: error:)/;
 
 // Splits checker output into one message per error; warnings, notes and "could not compile" summaries
 // are dropped. Undefined when the output holds no located error, so it stays one message.
@@ -166,8 +245,10 @@ function idAbove(runDir: string, message: string): string | undefined {
 
 const exec = promisify(execFile);
 
-export const runChecks: Verifier = async (runDir, lang, signal = new AbortController().signal) => {
-  for (const command of generatorFor(lang).checks) {
+export const runChecks: Verifier = (runDir, lang, signal = new AbortController().signal) => runCommands(runDir, generatorFor(lang).checks, signal);
+
+async function runCommands(runDir: string, commands: string[][], signal: AbortSignal): Promise<GenError[]> {
+  for (const command of commands) {
     if (signal.aborted) return [{ message: "run cancelled" }];
     try {
       await exec(command[0], command.slice(1), { cwd: runDir, timeout: 300_000, maxBuffer: 10 * 1024 * 1024, signal });

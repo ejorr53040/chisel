@@ -106,4 +106,26 @@ Verify: run ${spec.verify}. If it fails, fix the code and verify again. Stop aft
 Finally write ./${resultFile} as JSON: {"ok": <true if verification passed>, "errors": [{"blockId": "<the @id the error is about, if any>", "message": "<one-line error>"}]}. "errors" is empty when ok is true.`;
 }
 
-export const allowedTools = (lang: Lang) => ["Read", "Write", "Edit", "Glob", "Grep", "Bash(ls:*)", ...generatorFor(lang).tools];
+const BASE_TOOLS = ["Read", "Write", "Edit", "Glob", "Grep", "Bash(ls:*)"];
+export const allowedTools = (lang: Lang) => [...BASE_TOOLS, ...generatorFor(lang).tools];
+// In place, the agent may also run exactly the repository's own check commands.
+export const updateTools = (checks: string[][]) => [...BASE_TOOLS, "Bash(git diff:*)", "Bash(git status:*)", ...checks.map((c) => `Bash(${c.join(" ")}:*)`)];
+
+export function buildUpdatePrompt(archFile: string, resultFile: string, checks: string[][]): string {
+  const verify = checks.length ? checks.map((c) => `\`${c.join(" ")}\``).join(", then ") : "nothing (no checks are configured)";
+  return `You are updating an existing project so that it matches its architecture file.
+
+Read ./${archFile}. It is indentation-based pseudocode:
+- Indentation is containment. Every block line ends with \`@id <id>\`.
+- Block keywords: module, class, interface, fn (loose signature), field, const, type <name> struct|enum, library, service, entry main|http|cli.
+- \`intent:\` and \`steps:\` say what a function must do; \`notes:\` on any block is guidance for you.
+- \`-> <kind> <target> (@id <id>)\` lines are relationships from the enclosing block to the target.
+
+The architecture file may describe only part of the project. Study the existing code first, then change only what differs from the file: implement new or changed intents and steps, and add blocks that are missing. Leave code the file does not mention alone, and remove code only where a block's notes say to. Keep the project's existing style, layout and tests; add or update tests for behaviour you change. Do not touch files the architecture does not concern, and do not create commits or branches.
+
+Where code comes from a block, keep or add a comment \`@id <id>\` in the language's comment syntax on the line above its definition.
+
+Verify: run ${verify}. If it fails, fix the code and verify again. Stop after 3 fix attempts.
+
+Finally write ./${resultFile} as JSON: {"ok": <true if verification passed>, "errors": [{"blockId": "<the @id the error is about, if any>", "message": "<one-line error>"}]}. "errors" is empty when ok is true.`;
+}
