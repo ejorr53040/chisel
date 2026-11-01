@@ -164,6 +164,28 @@ describe("serialize warns about lossy mappings for the target language", () => {
     ]);
   });
 
+  it("keeps as the TypeScript parent the one the architecture file lists first, not the lowest edge id", () => {
+    const at = { x: 0, y: 0 };
+    const board: Board = {
+      version: 1,
+      name: "zoo",
+      blocks: [
+        { id: "c_z", kind: "class", name: "Zebra", position: at },
+        { id: "c_a", kind: "class", name: "Animal", position: at },
+        { id: "c_d", kind: "class", name: "Dog", position: at },
+      ],
+      edges: [
+        { id: "e_1", source: "c_d", target: "c_z", kind: "inherits" },
+        { id: "e_2", source: "c_d", target: "c_a", kind: "inherits" },
+      ],
+    };
+    const { arch, warnings } = serialize(board, "typescript");
+    expect(arch.indexOf("-> inherits Animal")).toBeLessThan(arch.indexOf("-> inherits Zebra"));
+    expect(warnings).toEqual([
+      { edgeId: "e_1", blockId: "c_d", message: "TypeScript classes extend one parent: Dog will extend Animal and take Zebra as an interface or a field." },
+    ]);
+  });
+
   it("gives no TypeScript warning for single inheritance", () => {
     expect(serialize(fixture("edges"), "typescript").warnings).toEqual([]);
   });

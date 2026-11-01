@@ -86,13 +86,14 @@ export const GENERATORS: Partial<Record<Lang, LangSpec>> = {
       "- entry cli → `parseArgs` from `node:util`; entry http → a route in the board's HTTP library, else `node:http`.",
       "- Library blocks become `dependencies` (pick the most common npm package unless an override names one), with `@types/*` in devDependencies where a package needs them. No `any`; no non-null `!` outside tests.",
     ].join("\n"),
-    verify: "`npm install --ignore-scripts`, then `npx tsc --noEmit`",
+    verify: "`npm install --ignore-scripts`, then `npx --no-install tsc --noEmit`",
     checks: [
       ["npm", "install", "--ignore-scripts", "--no-audit", "--no-fund"],
-      ["npx", "tsc", "--noEmit"],
+      ["npx", "--no-install", "tsc", "--noEmit"],
     ],
     // --ignore-scripts: dependencies' install scripts never run, unlike cargo build scripts or CMake code.
-    tools: ["Bash(npm install --ignore-scripts:*)", "Bash(npx tsc --noEmit:*)"],
+    // --no-install: without the project's typescript, npx would fetch the unrelated `tsc` package instead.
+    tools: ["Bash(npm install --ignore-scripts:*)", "Bash(npx --no-install tsc --noEmit:*)"],
   },
 };
 
