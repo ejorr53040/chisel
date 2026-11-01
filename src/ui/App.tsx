@@ -1,11 +1,11 @@
-import { useMemo, useState } from "react";
-import { Background, Controls, ReactFlow, useNodesState, useReactFlow } from "@xyflow/react";
-import { canContain, newBlock, type Block, type Edge, type Kind, type Lang } from "../board";
+import { useMemo, useRef, useState } from "react";
+import { Background, ConnectionMode, Controls, ReactFlow, useEdgesState, useNodesState, useReactFlow, type Connection } from "@xyflow/react";
+import { canContain, newBlock, newId, type Block, type Edge, type Kind, type Lang } from "../board";
 import { serialize } from "../serialize";
 import { failedResult, type GenerateResult } from "../run";
 import { GENERATORS } from "../prompts";
-import { KIND_LABELS, fromNodes, isContainer, nodeTypes, parentsFirst, toNode, toNodes, type BlockNode } from "./nodes";
-import { Inspector } from "./Inspector";
+import { KIND_LABELS, fromNodes, isContainer, nodeTypes, parentsFirst, toFlowEdge, toNode, toNodes, type BlockNode, type LinkEdge } from "./nodes";
+import { EdgeInspector, Inspector } from "./Inspector";
 
 type Run = { running: boolean; progress: string[]; result?: GenerateResult };
 
@@ -13,8 +13,12 @@ export function App() {
   const rf = useReactFlow<BlockNode>();
   const [nodes, setNodes, onNodesChange] = useNodesState<BlockNode>([]);
   const [name, setName] = useState("untitled");
-  // Edges have no UI until #4, but an opened board's edges must survive a save.
-  const [edges, setEdges] = useState<Edge[]>([]);
+  const [flowEdges, setFlowEdges, onEdgesChange] = useEdgesState<LinkEdge>([]);
+  // React Flow owns the ends; data.edge carries kind and label.
+  const edges = useMemo(() => flowEdges.map((e) => ({ ...e.data!.edge, source: e.source, target: e.target })), [flowEdges]);
+  // With loose handles React Flow reports the drag's start as the target when it began on a left handle;
+  // an edge always points from the block the drag started on.
+  const connectFrom = useRef<string | null>(null);
   const [path, setPath] = useState("~/scaffold-boards/untitled.scaffold.json");
   const [status, setStatus] = useState<{ ok: boolean; msg: string } | null>(null);
   const [lang, setLang] = useState<Lang>("python");
@@ -22,6 +26,22 @@ export function App() {
   const board = useMemo(() => fromNodes(nodes, name, edges), [nodes, name, edges]);
   const arch = useMemo(() => serialize(board).arch, [board]);
   const selected = nodes.find((n) => n.selected);
+  const selectedEdge = selected ? undefined : flowEdges.find((e) => e.selected)?.data!.edge;
+  const nameOf = (id: string) => nodes.find((n) => n.id === id)?.data.block.name ?? id;
+
+  // Any block may connect to any block; new edges start as "uses" and open in the inspector to retype.
+  const onConnect = (c: Connection) => {
+    const source = connectFrom.current ?? c.source;
+    const target = source === c.source ? c.target : c.source;
+    setNodes((ns) => ns.map((n) => ({ ...n, selected: false })));
+    setFlowEdges((es) => [
+      ...es.map((e) => ({ ...e, selected: false })),
+      toFlowEdge({ id: newId("e"), source, target, kind: "uses" }, true),
+    ]);
+  };
+  const updateEdge = (id: string, patch: Partial<Edge>) =>
+    setFlowEdges((es) => es.map((e) => (e.id === id ? toFlowEdge({ ...e.data!.edge, ...patch }, e.selected) : e)));
+  const deleteEdge = (id: string) => setFlowEdges((es) => es.filter((e) => e.id !== id));
 
   // New blocks land in the middle of the canvas, nudged so repeated adds don't stack exactly.
   const add = (kind: Kind) => {
@@ -66,7 +86,7 @@ export function App() {
     const body = await res.json();
     if (!res.ok) return setStatus({ ok: false, msg: body.error });
     setName(body.name);
-    setEdges(body.edges);
+    setFlowEdges(body.edges.map((e: Edge) => toFlowEdge(e)));
     setNodes(toNodes(body));
     setStatus({ ok: true, msg: `opened ${path}` });
     requestAnimationFrame(() => rf.fitView());
@@ -160,7 +180,14 @@ export function App() {
       <main className="canvas">
         <ReactFlow
           nodes={nodes}
+          edges={flowEdges}
           onNodesChange={onNodesChange}
+          onEdgesChange={onEdgesChange}
+          onConnect={onConnect}
+          onConnectStart={(_e, { nodeId }) => (connectFrom.current = nodeId)}
+          isValidConnection={(c) => c.source !== c.target}
+          connectionMode={ConnectionMode.Loose}
+          deleteKeyCode={["Backspace", "Delete"]}
           onNodeDragStop={onNodeDragStop}
           nodeTypes={nodeTypes}
           proOptions={{ hideAttribution: true }}
@@ -175,8 +202,16 @@ export function App() {
           <div className="label">Inspector</div>
           {selected ? (
             <Inspector block={selected.data.block} onChange={(p) => update(selected.id, p)} />
+          ) : selectedEdge ? (
+            <EdgeInspector
+              edge={selectedEdge}
+              from={nameOf(selectedEdge.source)}
+              to={nameOf(selectedEdge.target)}
+              onChange={(p) => updateEdge(selectedEdge.id, p)}
+              onDelete={() => deleteEdge(selectedEdge.id)}
+            />
           ) : (
-            <p className="meta">Select a block to edit it.</p>
+            <p className="meta">Select a block or edge to edit it. Drag from a block's side handle to another block to connect them.</p>
           )}
         </section>
         <section className="glass preview">

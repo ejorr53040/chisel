@@ -1,6 +1,6 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
-import { BLOCK_KINDS, LANGS, TRIGGERS, canContain, type Block, type Board, type Kind, type Lang } from "./board";
+import { BLOCK_KINDS, EDGE_KINDS, LANGS, TRIGGERS, canContain, type Block, type Board, type Kind, type Lang } from "./board";
 import { DEFAULT_MODULE, serialize } from "./serialize";
 
 const KINDS = new Set<string>(BLOCK_KINDS);
@@ -73,6 +73,16 @@ export function validate(data: unknown): Board {
     if (!parent) fail(`block ${x.id} has parent "${x.parentId}" that does not exist`);
     if (!canContain(parent!.kind, x.kind)) fail(`block ${x.id} has parent ${parent!.id}, but a ${parent!.kind} cannot contain a ${x.kind}`);
   }
+  const edgeIds = new Set<string>();
+  b.edges.forEach((e, i) => {
+    if (typeof e !== "object" || e === null || typeof e.id !== "string") fail(`edge ${i} needs a string id`);
+    if (edgeIds.has(e.id)) fail("duplicate edge ids");
+    edgeIds.add(e.id);
+    for (const end of [e.source, e.target]) if (!byId.has(end)) fail(`edge ${e.id} points at "${end}", which is not a block`);
+    if (!EDGE_KINDS.includes(e.kind)) fail(`edge ${e.id} has unknown kind "${e.kind}"`);
+    if (e.label !== undefined && !isText(e.label)) fail(`edge ${e.id} has a label that is not text`);
+    if (e.label !== undefined && e.kind !== "other") fail(`edge ${e.id} is "${e.kind}", but only "other" edges have labels`);
+  });
   // A parent cycle would make its blocks vanish from the architecture file.
   for (const x of b.blocks) {
     const seen = new Set<string>();

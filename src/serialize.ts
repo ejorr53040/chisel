@@ -1,4 +1,4 @@
-import { BLOCK_KINDS, LANGS, type Block, type Board, type Lang } from "./board";
+import { BLOCK_KINDS, EDGE_KINDS, LANGS, type Block, type Board, type Edge, type Lang } from "./board";
 
 export interface Warning {
   blockId?: string;
@@ -19,6 +19,10 @@ export function signatureText(signature: string): string {
   const [params, ...ret] = sig.split("->");
   return `(${params.trim()})` + (ret.length ? ` -> ${ret.join("->").trim()}` : "");
 }
+
+// What an edge says it is: its kind, or for a labelled "other" edge the label (double quotes become single,
+// since the file quotes it).
+export const edgeVerb = (e: Edge) => (e.kind === "other" && e.label?.trim() ? oneLine(e.label).replaceAll('"', "'") : e.kind);
 
 // Blocks outside any module are written into this one; a top-level module of the same name absorbs them.
 export const DEFAULT_MODULE = { id: "_main", name: "main" };
@@ -81,11 +85,31 @@ export function serialize(board: Board, _lang?: Lang): { arch: string; warnings:
         byCodePoint(a.id, b.id),
     );
 
+  const byId = new Map(board.blocks.map((b) => [b.id, b]));
+  const outgoing = new Map<string, Edge[]>();
+  for (const e of board.edges) {
+    if (!byId.has(e.target)) continue;
+    if (!outgoing.has(e.source)) outgoing.set(e.source, []);
+    outgoing.get(e.source)!.push(e);
+  }
+  const edgeLine = (e: Edge) => {
+    const target = byId.get(e.target)!;
+    const verb = edgeVerb(e) === e.kind ? e.kind : `"${edgeVerb(e)}"`;
+    return `-> ${verb} ${oneLine(target.name)} (@id ${target.id})  @edge ${e.id}`;
+  };
+  // Within a kind, the rendered line decides the order, so the file always reads sorted.
+  const edgesOf = (id: string) =>
+    (outgoing.get(id) ?? [])
+      .map((e) => ({ e, line: edgeLine(e) }))
+      .sort((a, b) => EDGE_KINDS.indexOf(a.e.kind) - EDGE_KINDS.indexOf(b.e.kind) || byCodePoint(a.line, b.line))
+      .map(({ line }) => line);
+
   const render = (b: Block, indent: string): string[] => {
     const out = [`${indent}${blockLine(b)}  @id ${b.id}`];
     for (const [key, value] of props(b))
       if (typeof value === "string") out.push(`${indent}  ${key}: ${value}`);
       else out.push(`${indent}  ${key}:`, ...value.map((v) => `${indent}    - ${v}`));
+    for (const line of edgesOf(b.id)) out.push(`${indent}  ${line}`);
     for (const c of sorted(b.id)) out.push(...render(c, indent + "  "));
     return out;
   };

@@ -12,7 +12,7 @@ import { claudeRunner } from "../../src/claude";
 const board: Board = {
   version: 1,
   name: "greeter",
-  edges: [],
+  edges: [{ id: "e_calls", source: "f_bump", target: "f_greeting", kind: "calls" }],
   blocks: [
     { id: "m_greet", kind: "module", name: "greet", position: { x: 0, y: 0 } },
     {
@@ -23,7 +23,7 @@ const board: Board = {
     { id: "x_count", kind: "field", name: "count", parentId: "c_counter", position: { x: 0, y: 0 }, type: "int" },
     {
       id: "f_bump", kind: "function", name: "bump", parentId: "c_counter", position: { x: 0, y: 0 },
-      signature: "-> int", intent: "Adds one to count and returns it.", steps: [],
+      signature: "-> int", intent: "Adds one to count, prints greeting(str(count)), and returns count.", steps: [],
     },
     { id: "t_mood", kind: "type", name: "Mood", parentId: "m_greet", position: { x: 0, y: 0 }, shape: "enum", members: ["happy", "sad"] },
     { id: "k_max", kind: "constant", name: "MAX_NAME", parentId: "m_greet", position: { x: 0, y: 0 }, type: "int", value: "40" },

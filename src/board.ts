@@ -128,12 +128,16 @@ export function newBlock(kind: Kind, position: { x: number; y: number }): Block 
   }
 }
 
+// Structural relationships first, then behaviour; the order edges are listed in under their source block.
+export const EDGE_KINDS = ["inherits", "implements", "imports", "uses", "calls", "returns", "emits", "handles", "other"] as const;
+export type EdgeKind = (typeof EDGE_KINDS)[number];
+
 export interface Edge {
   id: string;
   source: string;
   target: string;
-  kind: string;
-  label?: string;
+  kind: EdgeKind;
+  label?: string; // only for "other"
 }
 
 export interface Board {

@@ -88,6 +88,37 @@ try {
     assert.ok((await run.getByLabel("Progress").textContent()).length > 0, "no progress was streamed");
   }
 
+  // #4 on a fresh board: drag between handles to connect, retype the edge, delete a block and its edges go.
+  {
+    const p2 = await browser.newPage({ viewport: { width: 1400, height: 900 } });
+    p2.on("pageerror", (e) => errors.push(e.message));
+    await p2.goto(url);
+    const dsl = () => p2.getByLabel("Architecture file preview").textContent();
+    await p2.getByRole("button", { name: "+ Class" }).click();
+    await p2.getByRole("button", { name: "+ Library" }).click();
+    await p2.getByLabel("Name", { exact: true }).fill("HTTP client");
+    const lib = await p2.locator(".react-flow__node-library").boundingBox();
+    await p2.mouse.move(lib.x + 30, lib.y + 10);
+    await p2.mouse.down();
+    await p2.mouse.move(lib.x + 30, lib.y + 300, { steps: 8 });
+    await p2.mouse.up();
+    // Start on the class's left handle: the edge must still point from the block the drag began on.
+    const from = await p2.locator(".react-flow__node-class .react-flow__handle-left").boundingBox();
+    const to = await p2.locator(".react-flow__node-library .react-flow__handle-left").boundingBox();
+    await p2.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
+    await p2.mouse.down();
+    await p2.mouse.move(to.x + to.width / 2, to.y + to.height / 2, { steps: 12 });
+    await p2.mouse.up();
+    assert.match(await dsl(), /^ {4}-> uses HTTP client \(@id l_\w+\) {2}@edge e_\w+$/m, await dsl());
+    await p2.getByLabel("Relationship").selectOption("other");
+    await p2.getByLabel("Label", { exact: true }).fill("serves pages for");
+    assert.match(await dsl(), /-> "serves pages for" HTTP client \(@id l_\w+\)/);
+    await p2.locator(".react-flow__node-library").click();
+    await p2.keyboard.press("Delete");
+    assert.doesNotMatch(await dsl(), /->|HTTP client/);
+    await p2.close();
+  }
+
   await page.screenshot({ path: process.env.SHOT ?? join(tmpdir(), "scaffold-smoke.png") });
   assert.deepEqual(errors, []);
   console.log("ui smoke: ok");
