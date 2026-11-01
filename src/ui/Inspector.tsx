@@ -140,7 +140,7 @@ export function BoardInspector({ target, onChange }: { target?: Target; onChange
               onChange({ ...target, checks: v.split("\n").map((l) => l.trim().split(/\s+/).filter(Boolean)).filter((c) => c.length) });
             }}
           />
-          <p className="meta">Update repo works on a new scaffold/… branch and needs the repository to have no uncommitted changes besides this board.</p>
+          <p className="meta">Update repo works on a new chisel/… branch and needs the repository to have no uncommitted changes besides this board.</p>
         </>
       )}
     </div>

@@ -22,7 +22,7 @@ const send = (res: ServerResponse, status: number, body: unknown) => {
 function boardPath(req: IncomingMessage): string {
   const raw = new URL(req.url ?? "", "http://x").searchParams.get("path") ?? "";
   const path = resolve(raw.replace(/^~(?=\/)/, homedir()));
-  if (!path.endsWith(".scaffold.json")) throw new Error("board files must end in .scaffold.json");
+  if (!path.endsWith(".chisel.json")) throw new Error("board files must end in .chisel.json");
   return path;
 }
 
@@ -50,10 +50,10 @@ function readJson(req: IncomingMessage): Promise<unknown> {
 }
 
 // The local API: board files and generation runs for the UI. Mounted on the dev server and on the
-// preview server (`npm start`), which doesn't watch files, so Scaffold can update its own code mid-run.
+// preview server (`npm start`), which doesn't watch files, so Chisel can update its own code mid-run.
 function api(): Plugin {
   return {
-    name: "scaffold-api",
+    name: "chisel-api",
     configureServer(server) {
       mount(server.middlewares);
     },
@@ -96,7 +96,7 @@ function mount(middlewares: Connect.Server) {
   middlewares.use("/api/open", async (req, res) => {
     try {
       const { runDir } = (await readJson(req)) as { runDir: string };
-      if (typeof runDir !== "string" || !isRunDir(resolve(runDir))) throw new Error("not a scaffold run folder");
+      if (typeof runDir !== "string" || !isRunDir(resolve(runDir))) throw new Error("not a chisel run folder");
       const opener = process.platform === "darwin" ? "open" : process.platform === "win32" ? "explorer" : "xdg-open";
       spawn(opener, [resolve(runDir)], { detached: true, stdio: "ignore" }).on("error", () => {}).unref();
       send(res, 200, { opened: runDir });

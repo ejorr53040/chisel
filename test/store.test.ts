@@ -6,12 +6,12 @@ import type { Board } from "../src/board";
 import { loadBoard, saveBoard } from "../src/store";
 
 const fixture = (name: string): Board =>
-  JSON.parse(readFileSync(new URL(`fixtures/${name}.scaffold.json`, import.meta.url), "utf8"));
-const tmp = () => mkdtempSync(join(tmpdir(), "scaffold-"));
+  JSON.parse(readFileSync(new URL(`fixtures/${name}.chisel.json`, import.meta.url), "utf8"));
+const tmp = () => mkdtempSync(join(tmpdir(), "chisel-"));
 
 describe("board file store", () => {
   it("saves the board and its architecture file, and loads the board back", () => {
-    const path = join(tmp(), "shop.scaffold.json");
+    const path = join(tmp(), "shop.chisel.json");
     const board = fixture("nested-modules");
 
     saveBoard(path, board);
@@ -23,31 +23,31 @@ describe("board file store", () => {
   });
 
   it("round-trips a board with every block kind", () => {
-    const path = join(tmp(), "shop.scaffold.json");
+    const path = join(tmp(), "shop.chisel.json");
     saveBoard(path, fixture("all-kinds"));
     expect(loadBoard(path)).toEqual(fixture("all-kinds"));
   });
 
   it("round-trips a board with every edge kind", () => {
-    const path = join(tmp(), "accounts.scaffold.json");
+    const path = join(tmp(), "accounts.chisel.json");
     saveBoard(path, fixture("edges"));
     expect(loadBoard(path)).toEqual(fixture("edges"));
   });
 
   it("round-trips a board that targets an existing repository", () => {
-    const path = join(tmp(), "self.scaffold.json");
+    const path = join(tmp(), "self.chisel.json");
     const board = { ...fixture("single-function"), target: { repo: ".", checks: [["npx", "tsc", "--noEmit"], ["npx", "vitest", "run"]] } };
     saveBoard(path, board);
     expect(loadBoard(path)).toEqual(board);
   });
 
-    it("keeps Scaffold's own board valid", () => {
-    const board = loadBoard(new URL("../scaffold.scaffold.json", import.meta.url).pathname);
+    it("keeps Chisel's own board valid", () => {
+    const board = loadBoard(new URL("../chisel.chisel.json", import.meta.url).pathname);
     expect(board.target).toEqual({ repo: ".", checks: [["npx", "tsc", "--noEmit"], ["npx", "vitest", "run"]] });
   });
 
   it("creates the board's folder when it does not exist yet", () => {
-    const path = join(tmp(), "boards", "nested", "shop.scaffold.json");
+    const path = join(tmp(), "boards", "nested", "shop.chisel.json");
     saveBoard(path, fixture("nested-modules"));
     expect(loadBoard(path)).toEqual(fixture("nested-modules"));
   });
@@ -154,7 +154,7 @@ describe("board file store", () => {
       /target checks must be commands/,
     ],
   ])("rejects a malformed board file (%s) with a readable error", (_case, contents, message) => {
-    const path = join(tmp(), "bad.scaffold.json");
+    const path = join(tmp(), "bad.chisel.json");
     writeFileSync(path, contents);
     expect(() => loadBoard(path)).toThrow(message);
   });

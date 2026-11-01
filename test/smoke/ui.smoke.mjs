@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import assert from "node:assert/strict";
 
-const url = process.env.SCAFFOLD_URL ?? "http://localhost:5317/";
+const url = process.env.CHISEL_URL ?? "http://localhost:5317/";
 const browser = await chromium.launch({ executablePath: process.env.CHROMIUM ?? "/usr/bin/chromium" });
 const page = await browser.newPage({ viewport: { width: 1400, height: 900 } });
 const errors = [];
@@ -40,15 +40,15 @@ try {
   const arch = await preview.textContent();
   assert.match(arch, /^module auth {2}@id m_\w+\n {2}fn login\(\) {2}@id f_\w+\n {4}intent: Checks the password\.\n {2}module tokens {2}@id m_\w+$/m, arch);
 
-  const path = join(mkdtempSync(join(tmpdir(), "scaffold-smoke-")), "smoke.scaffold.json");
+  const path = join(mkdtempSync(join(tmpdir(), "chisel-smoke-")), "smoke.chisel.json");
   await page.getByLabel("Board file path").fill(path);
   await page.getByRole("button", { name: "Save" }).click();
   await page.getByRole("status").filter({ hasText: "saved" }).waitFor();
-  assert.ok(existsSync(path.replace(".scaffold.json", ".arch.md")));
-  assert.equal(readFileSync(path.replace(".scaffold.json", ".arch.md"), "utf8").trim(), arch.trim());
+  assert.ok(existsSync(path.replace(".chisel.json", ".arch.md")));
+  assert.equal(readFileSync(path.replace(".chisel.json", ".arch.md"), "utf8").trim(), arch.trim());
 
   // Opening and re-saving a board keeps what the UI can't show yet (edges arrive in #4).
-  const withEdges = join(mkdtempSync(join(tmpdir(), "scaffold-smoke-")), "edges.scaffold.json");
+  const withEdges = join(mkdtempSync(join(tmpdir(), "chisel-smoke-")), "edges.chisel.json");
   const original = JSON.parse(readFileSync(path, "utf8"));
   original.edges = [{ id: "e_1", source: original.blocks[0].id, target: original.blocks[1].id, kind: "uses" }];
   writeFileSync(withEdges, JSON.stringify(original));
@@ -121,8 +121,8 @@ try {
     await page.unrouteAll();
   }
 
-  // Opt-in: Generate through the UI with the real agent (SCAFFOLD_AGENT_SMOKE=1).
-  if (process.env.SCAFFOLD_AGENT_SMOKE) {
+  // Opt-in: Generate through the UI with the real agent (CHISEL_AGENT_SMOKE=1).
+  if (process.env.CHISEL_AGENT_SMOKE) {
     await page.getByLabel("Board file path").fill(path);
     await page.getByRole("button", { name: "Open", exact: true }).click();
     await page.getByRole("status").filter({ hasText: "opened" }).waitFor();
@@ -257,7 +257,7 @@ try {
     await p4.close();
   }
 
-  await page.screenshot({ path: process.env.SHOT ?? join(tmpdir(), "scaffold-smoke.png") });
+  await page.screenshot({ path: process.env.SHOT ?? join(tmpdir(), "chisel-smoke.png") });
   assert.deepEqual(errors, []);
   console.log("ui smoke: ok");
 } finally {

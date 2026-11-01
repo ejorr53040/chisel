@@ -4,7 +4,7 @@ import { duplicate, type Board } from "../src/board";
 import { validate } from "../src/store";
 
 const fixture = (name: string): Board =>
-  JSON.parse(readFileSync(new URL(`fixtures/${name}.scaffold.json`, import.meta.url), "utf8"));
+  JSON.parse(readFileSync(new URL(`fixtures/${name}.chisel.json`, import.meta.url), "utf8"));
 
 describe("duplicate", () => {
   it("copies the chosen blocks with everything inside them, under fresh ids", () => {
