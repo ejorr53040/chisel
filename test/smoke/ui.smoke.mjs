@@ -58,6 +58,19 @@ try {
   await page.getByRole("status").filter({ hasText: "saved" }).waitFor();
   assert.deepEqual(JSON.parse(readFileSync(withEdges, "utf8")).edges, original.edges);
 
+  // Opt-in: Generate through the UI with the real agent (SCAFFOLD_AGENT_SMOKE=1).
+  if (process.env.SCAFFOLD_AGENT_SMOKE) {
+    await page.getByLabel("Board file path").fill(path);
+    await page.getByRole("button", { name: "Open" }).click();
+    await page.getByRole("status").filter({ hasText: "opened" }).waitFor();
+    await page.getByRole("button", { name: "Generate" }).click();
+    const run = page.getByRole("region", { name: "Generation run" });
+    await run.getByText("running").waitFor();
+    await run.locator(".chip--ok, .chip--err").filter({ hasText: /verified|failed/ }).waitFor({ timeout: 600_000 });
+    assert.equal(await run.locator(".chip--ok").count(), 1, await run.textContent());
+    assert.ok((await run.getByLabel("Progress").textContent()).length > 0, "no progress was streamed");
+  }
+
   await page.screenshot({ path: process.env.SHOT ?? join(tmpdir(), "scaffold-smoke.png") });
   assert.deepEqual(errors, []);
   console.log("ui smoke: ok");
