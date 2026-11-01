@@ -1,10 +1,10 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Background, ConnectionMode, Controls, ReactFlow, useEdgesState, useNodesState, useReactFlow, type Connection } from "@xyflow/react";
-import { canContain, newBlock, newId, type Block, type Edge, type Kind, type Lang } from "../board";
+import { canContain, duplicate, newBlock, newId, type Block, type Board, type Edge, type Kind, type Lang } from "../board";
 import { serialize } from "../serialize";
 import { failedResult, type GenerateResult } from "../run";
 import { GENERATORS } from "../prompts";
-import { BlockErrors, BlockWarnings, KIND_LABELS, fromNodes, isContainer, nodeTypes, parentsFirst, toFlowEdge, toNode, toNodes, type BlockNode, type LinkEdge } from "./nodes";
+import { BlockErrors, BlockWarnings, KIND_KEYS, KIND_LABELS, fromNodes, isContainer, nodeTypes, parentsFirst, toFlowEdge, toNode, toNodes, type BlockNode, type LinkEdge } from "./nodes";
 import { EdgeInspector, Inspector } from "./Inspector";
 
 type Run = { running: boolean; progress: string[]; result?: GenerateResult };
@@ -23,6 +23,7 @@ export function App() {
   const [status, setStatus] = useState<{ ok: boolean; msg: string } | null>(null);
   const [lang, setLang] = useState<Lang>("python");
   const [run, setRun] = useState<Run | null>(null);
+  const [help, setHelp] = useState(false);
   const board = useMemo(() => fromNodes(nodes, name, edges), [nodes, name, edges]);
   const { arch, warnings } = useMemo(() => serialize(board, lang), [board, lang]);
   const blockWarnings = useMemo(() => {
@@ -78,40 +79,119 @@ export function App() {
       ns.map((n) => (n.id === id ? { ...n, data: { block: { ...n.data.block, ...patch } as Block } } : n)),
     );
 
-  // Containment: dropping a block onto a container that may hold it nests it; bare canvas un-nests it.
-  const onNodeDragStop = (_e: unknown, node: BlockNode) => {
-    const descendants = new Set<string>();
-    const walk = (id: string) =>
-      nodes.filter((n) => n.parentId === id).forEach((n) => (descendants.add(n.id), walk(n.id)));
-    walk(node.id);
+  // Containment: dropping blocks onto a container that may hold them nests them; bare canvas un-nests them.
+  // A container grows to fit what is dropped into it.
+  const onNodeDragStop = (_e: unknown, _node: BlockNode, dragged: BlockNode[]) => {
+    const draggedIds = new Set(dragged.map((n) => n.id));
+    const byId = new Map(nodes.map((n) => [n.id, n]));
+    const ancestorDragged = (n: BlockNode) => {
+      for (let p = n.parentId; p; p = byId.get(p)?.parentId) if (draggedIds.has(p)) return true;
+      return false;
+    };
     const area = (n: BlockNode) => (n.measured?.width ?? 0) * (n.measured?.height ?? 0);
-    const target = rf
-      .getIntersectingNodes(node)
-      .filter((n) => n.id !== node.id && !descendants.has(n.id) && isContainer(n.type!) && canContain(n.type!, node.type!))
-      .sort((a, b) => area(a) - area(b))[0];
-    const abs = rf.getInternalNode(node.id)!.internals.positionAbsolute;
-    const origin = target ? rf.getInternalNode(target.id)!.internals.positionAbsolute : { x: 0, y: 0 };
+    const moves = new Map<string, { parentId?: string; position: { x: number; y: number } }>();
+    const grow = new Map<string, { width: number; height: number }>();
+    for (const node of dragged.filter((n) => !ancestorDragged(n))) {
+      const descendants = new Set<string>();
+      const walk = (id: string) => nodes.filter((n) => n.parentId === id).forEach((n) => (descendants.add(n.id), walk(n.id)));
+      walk(node.id);
+      const target = rf
+        .getIntersectingNodes(node)
+        .filter((n) => !draggedIds.has(n.id) && !descendants.has(n.id) && isContainer(n.type!) && canContain(n.type!, node.type!))
+        .sort((a, b) => area(a) - area(b))[0];
+      const abs = rf.getInternalNode(node.id)!.internals.positionAbsolute;
+      const origin = target ? rf.getInternalNode(target.id)!.internals.positionAbsolute : { x: 0, y: 0 };
+      const position = { x: abs.x - origin.x, y: abs.y - origin.y };
+      moves.set(node.id, { parentId: target?.id, position });
+      if (target) {
+        const need = { width: position.x + (node.measured?.width ?? 0) + 24, height: position.y + (node.measured?.height ?? 0) + 24 };
+        const prev = grow.get(target.id) ?? { width: target.measured?.width ?? 0, height: target.measured?.height ?? 0 };
+        grow.set(target.id, { width: Math.max(prev.width, need.width), height: Math.max(prev.height, need.height) });
+      }
+    }
     setNodes((ns) =>
       parentsFirst(
-        ns.map((n) =>
-          n.id === node.id
-            ? { ...n, parentId: target?.id, position: { x: abs.x - origin.x, y: abs.y - origin.y } }
-            : n,
-        ),
+        ns.map((n) => {
+          const move = moves.get(n.id);
+          const size = grow.get(n.id);
+          const moved = move ? { ...n, parentId: move.parentId, position: move.position } : n;
+          return size && (size.width > (n.measured?.width ?? 0) || size.height > (n.measured?.height ?? 0))
+            ? { ...moved, width: Math.round(size.width), height: Math.round(size.height) }
+            : moved;
+        }),
       ),
     );
+  };
+
+  // Replaces what's on the canvas with a board, selecting the given block ids.
+  const show = (next: Board, select: string[] = []) => {
+    setName(next.name);
+    setNodes(toNodes(next).map((n) => ({ ...n, selected: select.includes(n.id) })));
+    setFlowEdges(next.edges.map((e) => toFlowEdge(e)));
+  };
+
+  // Undo history: snapshots of the board, taken once edits pause so a drag is one step. `current` is the
+  // snapshot on screen; an empty one means "take whatever is shown next as the starting point".
+  const history = useRef({ past: [] as string[], future: [] as string[], current: "" });
+  const [historyEpoch, setHistoryEpoch] = useState(0);
+  const boardJson = useMemo(() => JSON.stringify(board), [board]);
+  const record = (json: string) => {
+    const h = history.current;
+    if (!h.current) h.current = json;
+    if (json === h.current) return;
+    h.past = [...h.past, h.current].slice(-100);
+    h.future = [];
+    h.current = json;
+  };
+  useEffect(() => {
+    const timer = setTimeout(() => record(boardJson), 300);
+    return () => clearTimeout(timer);
+  }, [boardJson, historyEpoch]);
+  const resetHistory = () => {
+    history.current = { past: [], future: [], current: "" };
+    setHistoryEpoch((n) => n + 1);
+  };
+  const travel = (from: "past" | "future") => {
+    record(boardJson); // an edit still inside the debounce window is a step of its own
+    const h = history.current;
+    const to = from === "past" ? "future" : "past";
+    const snapshot = h[from].at(-1);
+    if (!snapshot) return;
+    h[from] = h[from].slice(0, -1);
+    h[to] = [...h[to], h.current];
+    h.current = snapshot;
+    show(JSON.parse(snapshot));
+  };
+  const undo = () => travel("past");
+  const redo = () => travel("future");
+
+  const duplicateSelection = () => {
+    const ids = nodes.filter((n) => n.selected).map((n) => n.id);
+    if (!ids.length) return;
+    const { board: next, copies } = duplicate(board, ids);
+    show(next, copies);
   };
 
   const open = async () => {
     const res = await fetch(`/api/board?path=${encodeURIComponent(path)}`);
     const body = await res.json();
     if (!res.ok) return setStatus({ ok: false, msg: body.error });
-    setName(body.name);
     setRun(null); // the last run's errors belong to the previous board
-    setFlowEdges(body.edges.map((e: Edge) => toFlowEdge(e)));
-    setNodes(toNodes(body));
+    resetHistory();
+    show(body);
     setStatus({ ok: true, msg: `opened ${path}` });
     requestAnimationFrame(() => rf.fitView());
+  };
+
+  // A blank board; asks first when the canvas has blocks, since unsaved work would be lost.
+  const newBoard = () => {
+    if (nodes.length && !window.confirm("Start a new board? Unsaved changes on this one will be lost.")) return;
+    setRun(null);
+    setStatus(null);
+    resetHistory();
+    show({ version: 1, name: "untitled", blocks: [], edges: [] });
+    // Always a fresh file name, so the next Save can't overwrite the board that was open.
+    setPath(path.slice(0, path.lastIndexOf("/") + 1) + "untitled.scaffold.json");
   };
 
   const save = async () => {
@@ -125,7 +205,10 @@ export function App() {
   };
 
   // Saves the board, then reads the server-sent events of the run as they arrive.
-  const cancelRun = () => fetch("/api/generate/cancel", { method: "POST" });
+  const cancelRun = () => {
+    setRun((r) => r && { ...r, progress: [...r.progress, "cancelling…"] });
+    fetch("/api/generate/cancel", { method: "POST" }).catch((e) => setStatus({ ok: false, msg: `cancel failed: ${e.message}` }));
+  };
   const openRunDir = async (runDir: string) => {
     const res = await fetch("/api/open", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ runDir }) });
     if (!res.ok) setStatus({ ok: false, msg: (await res.json()).error });
@@ -162,8 +245,33 @@ export function App() {
     setRun((r) => (r?.running ? { ...r, running: false, result: r.result ?? failedResult("the run ended without a result") } : r));
   };
 
+  // Shortcuts. Plain keys never fire while typing in a field; Ctrl/Cmd+S and +Enter work anywhere.
+  useEffect(() => {
+    const byKey = Object.fromEntries(Object.entries(KIND_KEYS).map(([kind, key]) => [key, kind as Kind]));
+    const onKey = (e: KeyboardEvent) => {
+      const typing = e.target instanceof HTMLElement && e.target.closest("input, textarea, select, [contenteditable]");
+      const mod = e.ctrlKey || e.metaKey;
+      const key = e.key.toLowerCase();
+      const act = (fn: () => void) => (e.preventDefault(), fn());
+      if (mod && key === "s") return act(save);
+      if (mod && e.key === "Enter") return act(() => run?.running || runGenerate());
+      if (e.repeat) return;
+      if (typing && !help) return;
+      // While the shortcut list is open, only closing it does anything.
+      if (help) return e.key === "Escape" || e.key === "?" ? act(() => setHelp(false)) : act(() => {});
+      if (mod && key === "z") return act(e.shiftKey ? redo : undo);
+      if (mod && key === "y") return act(redo);
+      if (mod && key === "d") return act(duplicateSelection);
+      if (e.key === "?") return act(() => setHelp((h) => !h));
+      if (!mod && !e.altKey && !e.shiftKey && byKey[key]) return act(() => add(byKey[key]));
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  });
+
   return (
     <div className="app">
+      {help && <ShortcutHelp onClose={() => setHelp(false)} />}
       <header className="topbar">
         <span className="logo">
           <svg aria-hidden="true">
@@ -173,6 +281,9 @@ export function App() {
         </span>
         <input aria-label="Board name" value={name} onChange={(e) => setName(e.target.value)} />
         <input aria-label="Board file path" className="path" value={path} onChange={(e) => setPath(e.target.value)} />
+        <button className="btn btn--sm" onClick={newBoard} disabled={run?.running}>
+          New
+        </button>
         <button className="btn btn--sm" onClick={open}>
           Open
         </button>
@@ -194,6 +305,9 @@ export function App() {
             Cancel
           </button>
         )}
+        <button className="btn btn--sm btn--link" onClick={() => setHelp(true)} aria-keyshortcuts="?">
+          Shortcuts
+        </button>
         {status && (
           <span role="status" className={`chip ${status.ok ? "chip--ok" : "chip--err"}`}>
             {status.msg}
@@ -204,8 +318,9 @@ export function App() {
       <aside className="palette glass">
         <div className="label">Blocks</div>
         {(Object.keys(KIND_LABELS) as Kind[]).map((kind) => (
-          <button key={kind} className="btn btn--sm" onClick={() => add(kind)}>
+          <button key={kind} className="btn btn--sm palette-btn" onClick={() => add(kind)} aria-keyshortcuts={KIND_KEYS[kind]}>
             + {KIND_LABELS[kind]}
+            <kbd aria-hidden="true">{KIND_KEYS[kind].toUpperCase()}</kbd>
           </button>
         ))}
       </aside>
@@ -222,7 +337,7 @@ export function App() {
           onConnectStart={(_e, { nodeId }) => (connectFrom.current = nodeId)}
           isValidConnection={(c) => c.source !== c.target}
           connectionMode={ConnectionMode.Loose}
-          deleteKeyCode={["Backspace", "Delete"]}
+          deleteKeyCode={help ? null : ["Backspace", "Delete"]}
           onNodeDragStop={onNodeDragStop}
           nodeTypes={nodeTypes}
           proOptions={{ hideAttribution: true }}
@@ -286,7 +401,7 @@ function RunPanel({
         <span className="label">Run</span>
         {run.running && <span className="chip chip--accent">running</span>}
         {r && (
-          <span className={`chip ${r.ok ? "chip--ok" : r.cancelled ? "" : "chip--err"}`}>{r.ok ? "verified" : r.cancelled ? "cancelled" : "failed"}</span>
+          <span className={r.ok ? "chip chip--ok" : r.cancelled ? "chip" : "chip chip--err"}>{r.ok ? "verified" : r.cancelled ? "cancelled" : "failed"}</span>
         )}
       </div>
       {r?.runDir && (
@@ -319,5 +434,42 @@ function RunPanel({
       )}
       <pre className="run-log" aria-label="Progress">{run.progress.join("\n")}</pre>
     </section>
+  );
+}
+
+const SHORTCUTS: [string, string][] = [
+  ...(Object.keys(KIND_LABELS) as Kind[]).map((kind): [string, string] => [KIND_KEYS[kind].toUpperCase(), `Add ${KIND_LABELS[kind].toLowerCase()}`]),
+  ["Delete / Backspace", "Delete the selection"],
+  ["Ctrl+D", "Duplicate the selection"],
+  ["Ctrl+Z", "Undo"],
+  ["Ctrl+Shift+Z / Ctrl+Y", "Redo"],
+  ["Shift+drag", "Select several blocks"],
+  ["Ctrl+S", "Save"],
+  ["Ctrl+Enter", "Generate"],
+  ["?", "Show or hide this list"],
+];
+
+function ShortcutHelp({ onClose }: { onClose: () => void }) {
+  return (
+    <div className="help-backdrop" onClick={onClose}>
+      <div role="dialog" aria-modal="true" aria-label="Keyboard shortcuts" className="glass help" onClick={(e) => e.stopPropagation()}>
+        <div className="label">Keyboard shortcuts</div>
+        <table>
+          <tbody>
+            {SHORTCUTS.map(([keys, what]) => (
+              <tr key={keys}>
+                <td>
+                  <kbd>{keys}</kbd>
+                </td>
+                <td>{what}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <button className="btn btn--sm" onClick={onClose} autoFocus>
+          Close
+        </button>
+      </div>
+    </div>
   );
 }

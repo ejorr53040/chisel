@@ -18,6 +18,20 @@ export const KIND_LABELS: Record<Kind, string> = {
   entry: "Entry point",
 };
 
+// One-letter shortcuts for adding each kind.
+export const KIND_KEYS: Record<Kind, string> = {
+  module: "m",
+  class: "c",
+  interface: "i",
+  function: "f",
+  field: "d",
+  constant: "k",
+  type: "t",
+  library: "l",
+  service: "s",
+  entry: "e",
+};
+
 export const isContainer = (kind: Kind) => kind in CONTAINS;
 
 // Default sizes; every container kind (anything in CONTAINS) gets one.

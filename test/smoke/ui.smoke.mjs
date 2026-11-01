@@ -53,7 +53,7 @@ try {
   original.edges = [{ id: "e_1", source: original.blocks[0].id, target: original.blocks[1].id, kind: "uses" }];
   writeFileSync(withEdges, JSON.stringify(original));
   await page.getByLabel("Board file path").fill(withEdges);
-  await page.getByRole("button", { name: "Open" }).click();
+  await page.getByRole("button", { name: "Open", exact: true }).click();
   await page.getByRole("status").filter({ hasText: "opened" }).waitFor();
   await page.getByRole("button", { name: "Save" }).click();
   await page.getByRole("status").filter({ hasText: "saved" }).waitFor();
@@ -116,8 +116,7 @@ try {
     await page.getByRole("button", { name: "Cancel" }).click();
     await runPanel.getByText("cancelled", { exact: true }).waitFor();
     assert.equal(await page.getByRole("button", { name: "Cancel" }).count(), 0);
-    await runPanel.getByRole("button", { name: "Open folder" }).click();
-    await page.waitForFunction(() => true);
+    await Promise.all([page.waitForRequest("**/api/open"), runPanel.getByRole("button", { name: "Open folder" }).click()]);
     assert.deepEqual(opened, { runDir: "/tmp/run-9" });
     await page.unrouteAll();
   }
@@ -125,7 +124,7 @@ try {
   // Opt-in: Generate through the UI with the real agent (SCAFFOLD_AGENT_SMOKE=1).
   if (process.env.SCAFFOLD_AGENT_SMOKE) {
     await page.getByLabel("Board file path").fill(path);
-    await page.getByRole("button", { name: "Open" }).click();
+    await page.getByRole("button", { name: "Open", exact: true }).click();
     await page.getByRole("status").filter({ hasText: "opened" }).waitFor();
     await page.getByRole("button", { name: "Generate" }).click();
     const run = page.getByRole("region", { name: "Generation run" });
@@ -172,6 +171,83 @@ try {
     await p2.keyboard.press("Delete");
     assert.doesNotMatch(await dsl(), /->|HTTP client/);
     await p2.close();
+  }
+
+  // #10 on a fresh board: add by key, undo/redo, duplicate with fresh ids, the shortcut list.
+  {
+    const p3 = await browser.newPage({ viewport: { width: 1400, height: 900 } });
+    p3.on("pageerror", (e) => errors.push(e.message));
+    await p3.goto(url);
+    const fns = async () => ((await p3.getByLabel("Architecture file preview").textContent()).match(/^ {2}fn function\(\) {2}@id (\w+)/gm) ?? []);
+    const settle = () => p3.waitForTimeout(450); // history snapshots once edits pause for 300ms
+    await p3.locator(".canvas").click({ position: { x: 5, y: 5 } });
+    await settle();
+    await p3.keyboard.press("f");
+    await settle();
+    assert.equal((await fns()).length, 1);
+    await p3.keyboard.press("Control+z");
+    await settle();
+    assert.equal((await fns()).length, 0, "undo removes the added block");
+    await p3.keyboard.press("Control+Shift+z");
+    await settle();
+    assert.equal((await fns()).length, 1, "redo brings it back");
+    await p3.locator(".react-flow__node-function").click();
+    await p3.keyboard.press("Control+d");
+    await settle();
+    const ids = await fns();
+    assert.equal(ids.length, 2);
+    assert.notEqual(ids[0], ids[1]);
+    // Undo, then a new edit, then undo again lands on the state before that edit (not further back).
+    await p3.keyboard.press("c");
+    await settle();
+    await p3.keyboard.press("Control+z");
+    await settle();
+    await p3.keyboard.press("m");
+    await settle();
+    await p3.keyboard.press("Control+z");
+    await settle();
+    const afterUndo = await p3.getByLabel("Architecture file preview").textContent();
+    assert.equal((await fns()).length, 2, afterUndo);
+    assert.doesNotMatch(afterUndo, /class Class|module module/, afterUndo);
+    // Keys don't reach the board while the shortcut list is open.
+    await p3.keyboard.press("?");
+    await p3.keyboard.press("f");
+    await p3.keyboard.press("Escape");
+    await settle();
+    assert.equal((await fns()).length, 2, "a key pressed behind the dialog added a block");
+    p3.once("dialog", (d) => d.accept());
+    await p3.getByRole("button", { name: "New" }).click();
+    assert.equal((await fns()).length, 0, "New clears the board");
+    await p3.keyboard.press("?");
+    const dialog = p3.getByRole("dialog", { name: "Keyboard shortcuts" });
+    await dialog.getByText("Duplicate the selection").waitFor();
+    await p3.keyboard.press("Escape");
+    assert.equal(await dialog.count(), 0);
+    await p3.close();
+  }
+
+  // Dragging a block out of its container onto bare canvas un-nests it.
+  {
+    const p4 = await browser.newPage({ viewport: { width: 1400, height: 900 } });
+    p4.on("pageerror", (e) => errors.push(e.message));
+    await p4.goto(url);
+    const dsl = () => p4.getByLabel("Architecture file preview").textContent();
+    await p4.getByRole("button", { name: "+ Module" }).click();
+    await p4.getByRole("button", { name: "+ Function" }).click();
+    const fn = await p4.locator(".react-flow__node-function").boundingBox();
+    await p4.mouse.move(fn.x + 20, fn.y + 8);
+    await p4.mouse.down();
+    await p4.mouse.move(fn.x + 40, fn.y + 30, { steps: 6 });
+    await p4.mouse.up();
+    assert.match(await dsl(), /^module module {2}@id m_\w+\n {2}fn function/m, "nested first");
+    const inside = await p4.locator(".react-flow__node-function").boundingBox();
+    const canvas = await p4.locator(".canvas").boundingBox();
+    await p4.mouse.move(inside.x + 20, inside.y + 8);
+    await p4.mouse.down();
+    await p4.mouse.move(canvas.x + 60, canvas.y + 60, { steps: 12 });
+    await p4.mouse.up();
+    assert.match(await dsl(), /^module main {2}@id _main\n {2}fn function/m, await dsl());
+    await p4.close();
   }
 
   await page.screenshot({ path: process.env.SHOT ?? join(tmpdir(), "scaffold-smoke.png") });

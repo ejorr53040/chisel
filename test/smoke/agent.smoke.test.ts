@@ -49,7 +49,7 @@ describe.skipIf(!process.env.SCAFFOLD_AGENT_SMOKE).each(langs)("real agent: %s",
     expect(result.ok).toBe(true);
     expect(result.files).toContain("MAPPING.md");
     // Check the agent's claim ourselves, with the same commands the server uses.
-    expect(await runChecks(result.runDir, lang)).toEqual([]);
+    expect(await runChecks(result.runDir, lang, new AbortController().signal)).toEqual([]);
     const sources = result.files.filter((f) => /\.(py|rs|cpp|hpp|h|cc)$/.test(f));
     expect(sources.some((f) => readFileSync(join(result.runDir, f), "utf8").includes("greeting"))).toBe(true);
   });
