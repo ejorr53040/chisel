@@ -66,7 +66,8 @@ module server  @id m_server
     -> calls loadBoard (@id f_load)  @edge e_s6
     -> calls saveBoard (@id f_save)  @edge e_s7
   entry http cancel  @id e_cancel
-    detail: POST /api/generate/cancel aborts the current run
+    notes: Cancel must only abort the run it names, so a Cancel from one tab can never stop another tab's run. /api/generate sends a first `start` SSE event carrying a fresh run id; the UI keeps it and its Cancel posts { runId }; a cancel whose runId is not the current run's answers 409 and aborts nothing. Add a unit test for the id check.
+    detail: POST /api/generate/cancel with { runId } aborts the current run only when runId names it
   entry http generate  @id e_gen
     detail: POST /api/generate?path=… saves the board, then streams progress and one done result as SSE; one run at a time
     -> uses claudeRunner (@id f_runner)  @edge e_s5

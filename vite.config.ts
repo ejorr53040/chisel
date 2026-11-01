@@ -9,7 +9,8 @@ import { generate, isRunDir, update } from "./src/generate";
 import { spawn } from "node:child_process";
 import { claudeRunner } from "./src/claude";
 import { generatorFor } from "./src/prompts";
-import { failedResult } from "./src/run";
+import { randomUUID } from "node:crypto";
+import { cancelRun, failedResult, type ActiveRun } from "./src/run";
 import type { Lang } from "./src/board";
 
 const send = (res: ServerResponse, status: number, body: unknown) => {
@@ -78,11 +79,17 @@ function mount(middlewares: Connect.Server) {
 
   // Saves the board, then streams the run as server-sent events: `progress` lines, then one `done` result.
   // One run at a time; Cancel or closing the page stops its agent.
-  let current: AbortController | null = null;
-  middlewares.use("/api/generate/cancel", (req, res) => {
-    if (req.method !== "POST") return send(res, 405, { error: "use POST" });
-    current?.abort();
-    send(res, 200, { cancelled: current !== null });
+  let current: ActiveRun | null = null;
+  // @id e_cancel
+  middlewares.use("/api/generate/cancel", async (req, res) => {
+    let runId: unknown;
+    try {
+      runId = ((await readJson(req)) as { runId?: unknown } | null)?.runId;
+    } catch (e) {
+      return send(res, 400, { error: (e as Error).message });
+    }
+    if (!cancelRun(current, runId)) return send(res, 409, { error: "that run is not the current run" });
+    send(res, 200, { cancelled: true });
   });
 
   // Opens a finished run's folder in the desktop's file manager.
@@ -112,10 +119,12 @@ function mount(middlewares: Connect.Server) {
       return send(res, 400, { error: (e as Error).message });
     }
     const controller = new AbortController();
-    current = controller;
+    const runId = randomUUID();
+    current = { id: runId, controller };
     res.on("close", () => controller.abort());
     res.writeHead(200, { "Content-Type": "text/event-stream", "Cache-Control": "no-cache" });
     const emit = (event: string, data: unknown) => res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+    emit("start", { runId });
     try {
       const onProgress = (line: string) => emit("progress", line);
       const target = board.target;

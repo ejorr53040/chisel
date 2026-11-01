@@ -17,6 +17,104 @@
       "notes": "The board model shared by the UI and the server (src/board.ts)."
     },
     {
+      "id": "m_serialize",
+      "kind": "module",
+      "name": "serialize",
+      "position": {
+        "x": 420,
+        "y": 0
+      },
+      "size": {
+        "width": 380,
+        "height": 316
+      },
+      "notes": "The board → architecture file renderer (src/serialize.ts); grammar in docs/adr/0001."
+    },
+    {
+      "id": "m_store",
+      "kind": "module",
+      "name": "store",
+      "position": {
+        "x": 840,
+        "y": 0
+      },
+      "size": {
+        "width": 380,
+        "height": 252
+      },
+      "notes": "Board files on disk (src/store.ts)."
+    },
+    {
+      "id": "m_generate",
+      "kind": "module",
+      "name": "generate",
+      "position": {
+        "x": 1260,
+        "y": 0
+      },
+      "size": {
+        "width": 380,
+        "height": 316
+      },
+      "notes": "Runs the agent and judges its work (src/generate.ts)."
+    },
+    {
+      "id": "m_claude",
+      "kind": "module",
+      "name": "claude",
+      "position": {
+        "x": 0,
+        "y": 520
+      },
+      "size": {
+        "width": 380,
+        "height": 124
+      },
+      "notes": "The real agent runner (src/claude.ts)."
+    },
+    {
+      "id": "m_prompts",
+      "kind": "module",
+      "name": "prompts",
+      "position": {
+        "x": 420,
+        "y": 520
+      },
+      "size": {
+        "width": 380,
+        "height": 252
+      },
+      "notes": "Per-language agent instructions (src/prompts.ts)."
+    },
+    {
+      "id": "m_server",
+      "kind": "module",
+      "name": "server",
+      "position": {
+        "x": 840,
+        "y": 520
+      },
+      "size": {
+        "width": 380,
+        "height": 316
+      },
+      "notes": "The local API, as a Vite dev-server plugin (vite.config.ts). Every /api call must come from the app's own origin."
+    },
+    {
+      "id": "m_ui",
+      "kind": "module",
+      "name": "ui",
+      "position": {
+        "x": 1260,
+        "y": 520
+      },
+      "size": {
+        "width": 380,
+        "height": 316
+      },
+      "notes": "The React + React Flow interface (src/ui)."
+    },
+    {
       "id": "t_board",
       "kind": "type",
       "name": "Board",
@@ -113,20 +211,6 @@
       }
     },
     {
-      "id": "m_serialize",
-      "kind": "module",
-      "name": "serialize",
-      "position": {
-        "x": 420,
-        "y": 0
-      },
-      "size": {
-        "width": 380,
-        "height": 316
-      },
-      "notes": "The board → architecture file renderer (src/serialize.ts); grammar in docs/adr/0001."
-    },
-    {
       "id": "f_serialize",
       "kind": "function",
       "name": "serialize",
@@ -179,20 +263,6 @@
       }
     },
     {
-      "id": "m_store",
-      "kind": "module",
-      "name": "store",
-      "position": {
-        "x": 840,
-        "y": 0
-      },
-      "size": {
-        "width": 380,
-        "height": 252
-      },
-      "notes": "Board files on disk (src/store.ts)."
-    },
-    {
       "id": "f_load",
       "kind": "function",
       "name": "loadBoard",
@@ -230,20 +300,6 @@
         "x": 16,
         "y": 176
       }
-    },
-    {
-      "id": "m_generate",
-      "kind": "module",
-      "name": "generate",
-      "position": {
-        "x": 1260,
-        "y": 0
-      },
-      "size": {
-        "width": 380,
-        "height": 316
-      },
-      "notes": "Runs the agent and judges its work (src/generate.ts)."
     },
     {
       "id": "f_generate",
@@ -298,20 +354,6 @@
       }
     },
     {
-      "id": "m_claude",
-      "kind": "module",
-      "name": "claude",
-      "position": {
-        "x": 0,
-        "y": 520
-      },
-      "size": {
-        "width": 380,
-        "height": 124
-      },
-      "notes": "The real agent runner (src/claude.ts)."
-    },
-    {
       "id": "f_runner",
       "kind": "function",
       "name": "claudeRunner",
@@ -323,20 +365,6 @@
         "x": 16,
         "y": 48
       }
-    },
-    {
-      "id": "m_prompts",
-      "kind": "module",
-      "name": "prompts",
-      "position": {
-        "x": 420,
-        "y": 520
-      },
-      "size": {
-        "width": 380,
-        "height": 252
-      },
-      "notes": "Per-language agent instructions (src/prompts.ts)."
     },
     {
       "id": "k_gen",
@@ -377,20 +405,6 @@
       }
     },
     {
-      "id": "m_server",
-      "kind": "module",
-      "name": "server",
-      "position": {
-        "x": 840,
-        "y": 520
-      },
-      "size": {
-        "width": 380,
-        "height": 316
-      },
-      "notes": "The local API, as a Vite dev-server plugin (vite.config.ts). Every /api call must come from the app's own origin."
-    },
-    {
       "id": "e_board",
       "kind": "entry",
       "name": "board",
@@ -419,12 +433,13 @@
       "kind": "entry",
       "name": "cancel",
       "trigger": "http",
-      "detail": "POST /api/generate/cancel aborts the current run",
+      "detail": "POST /api/generate/cancel with { runId } aborts the current run only when runId names it",
       "parentId": "m_server",
       "position": {
         "x": 16,
         "y": 176
-      }
+      },
+      "notes": "Cancel must only abort the run it names, so a Cancel from one tab can never stop another tab's run. /api/generate sends a first `start` SSE event carrying a fresh run id; the UI keeps it and its Cancel posts { runId }; a cancel whose runId is not the current run's answers 409 and aborts nothing. Add a unit test for the id check."
     },
     {
       "id": "e_open",
@@ -437,20 +452,6 @@
         "x": 16,
         "y": 240
       }
-    },
-    {
-      "id": "m_ui",
-      "kind": "module",
-      "name": "ui",
-      "position": {
-        "x": 1260,
-        "y": 520
-      },
-      "size": {
-        "width": 380,
-        "height": 316
-      },
-      "notes": "The React + React Flow interface (src/ui)."
     },
     {
       "id": "f_app",

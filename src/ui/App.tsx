@@ -210,9 +210,13 @@ export function App() {
   };
 
   // Saves the board, then reads the server-sent events of the run as they arrive.
+  // The id from the run's `start` event, so Cancel stops this tab's run and never another's.
+  const runId = useRef<string | null>(null);
   const cancelRun = () => {
     setRun((r) => r && { ...r, progress: [...r.progress, "cancelling…"] });
-    fetch("/api/generate/cancel", { method: "POST" }).catch((e) => setStatus({ ok: false, msg: `cancel failed: ${e.message}` }));
+    fetch("/api/generate/cancel", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ runId: runId.current }) })
+      .then(async (res) => res.ok || setStatus({ ok: false, msg: `cancel failed: ${(await res.json()).error}` }))
+      .catch((e) => setStatus({ ok: false, msg: `cancel failed: ${e.message}` }));
   };
   const openRunDir = async (runDir: string) => {
     const res = await fetch("/api/open", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ runDir }) });
@@ -220,6 +224,7 @@ export function App() {
   };
 
   const runGenerate = async () => {
+    runId.current = null;
     setRun({ running: true, progress: [] });
     const failed = (message: string) => setRun((r) => ({ running: false, progress: r?.progress ?? [], result: failedResult(message) }));
     try {
@@ -240,6 +245,7 @@ export function App() {
         for (const ev of events) {
           const kind = /^event: (\w+)/m.exec(ev)?.[1];
           const data = JSON.parse(/^data: (.*)$/m.exec(ev)?.[1] ?? "null");
+          if (kind === "start") runId.current = data.runId;
           if (kind === "progress") setRun((r) => ({ running: true, progress: [...(r?.progress ?? []), data].slice(-200) }));
           if (kind === "done") setRun((r) => ({ running: false, progress: r?.progress ?? [], result: data }));
         }
