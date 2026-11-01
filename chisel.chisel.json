@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "name": "scaffold",
+  "name": "chisel",
   "blocks": [
     {
       "id": "m_board",
@@ -319,7 +319,7 @@
       "kind": "function",
       "name": "update",
       "signature": "({ arch, repo, checks, runner, verify?, boardFiles?, onProgress?, signal? }) -> GenerateResult",
-      "intent": "Updates an existing clean repository in place on a new scaffold/<timestamp> branch, verifies with its own checks and reports the changed files.",
+      "intent": "Updates an existing clean repository in place on a new chisel/<timestamp> branch, verifies with its own checks and reports the changed files.",
       "steps": [],
       "parentId": "m_generate",
       "position": {

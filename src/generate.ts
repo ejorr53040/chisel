@@ -22,8 +22,8 @@ export type Verifier = (runDir: string, lang: Lang, signal: AbortSignal) => Prom
 
 const KEEP_RUNS = 5;
 const ARCH_FILE = "architecture.arch.md";
-const RESULT_FILE = "scaffold-result.json";
-const STATUS_FILE = ".scaffold-run.json"; // our own verdict, read back when pruning
+const RESULT_FILE = "chisel-result.json";
+const STATUS_FILE = ".chisel-run.json"; // our own verdict, read back when pruning
 const RUN_DIR = /^\d{4}-\d\d-\d\dT/;
 // Build and cache output is noise in the file list.
 // Build output at a run's root, and the file that proves a build system made it (null: always build output).
@@ -114,8 +114,8 @@ async function judge(
 
 const git = (repo: string, ...args: string[]) => exec("git", ["-C", repo, ...args]).then((r) => r.stdout.trim());
 // Scratch files the agent reads and writes in the repository; hidden from git and removed afterwards.
-const UPDATE_ARCH = ".scaffold-architecture.arch.md";
-const UPDATE_RESULT = ".scaffold-result.json";
+const UPDATE_ARCH = ".chisel-architecture.arch.md";
+const UPDATE_RESULT = ".chisel-result.json";
 
 // Updates an existing repository in place so it matches the architecture file. The repository must have no
 // uncommitted changes (the board's own files excepted) and the agent works on a new branch, so every change
@@ -144,7 +144,7 @@ export async function update({
   const dirty = (await statusPaths(repo)).filter((path) => !boardFiles.includes(path));
   if (dirty.length) throw new Error(`${repo} has uncommitted changes: ${dirty.join(", ")}. Commit or stash them first.`);
 
-  const branch = `scaffold/${new Date().toISOString().replace(/[:.]/g, "-")}`;
+  const branch = `chisel/${new Date().toISOString().replace(/[:.]/g, "-")}`;
   await git(repo, "switch", "-q", "-c", branch);
   onProgress(`working on branch ${branch}`);
   const exclude = join(root, ".git", "info", "exclude");

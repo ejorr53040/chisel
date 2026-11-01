@@ -24,7 +24,7 @@ const FIELDS: Record<Kind, [string, (v: unknown) => boolean][]> = {
 };
 
 export function archPath(boardPath: string): string {
-  return boardPath.replace(/\.scaffold\.json$/, "") + ".arch.md";
+  return boardPath.replace(/\.chisel\.json$/, "") + ".arch.md";
 }
 
 export function saveBoard(path: string, board: Board): void {

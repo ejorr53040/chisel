@@ -1,4 +1,4 @@
-// Real-agent smoke test: runs `claude -p` for real. Opt in with SCAFFOLD_AGENT_SMOKE=1 (slow, uses your Claude account).
+// Real-agent smoke test: runs `claude -p` for real. Opt in with CHISEL_AGENT_SMOKE=1 (slow, uses your Claude account).
 import { describe, expect, it } from "vitest";
 import { mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -31,15 +31,15 @@ const board: Board = {
   ],
 };
 
-const langs = (process.env.SCAFFOLD_AGENT_LANGS?.split(",") ?? Object.keys(GENERATORS)) as Lang[];
+const langs = (process.env.CHISEL_AGENT_LANGS?.split(",") ?? Object.keys(GENERATORS)) as Lang[];
 
-describe.skipIf(!process.env.SCAFFOLD_AGENT_SMOKE).each(langs)("real agent: %s", (lang) => {
+describe.skipIf(!process.env.CHISEL_AGENT_SMOKE).each(langs)("real agent: %s", (lang) => {
   it("generates a project that passes the language's own checks", { timeout: 900_000 }, async () => {
     const progress: string[] = [];
     const result = await generate({
       arch: serialize(board, lang).arch,
       lang,
-      outDir: mkdtempSync(join(tmpdir(), `scaffold-agent-${lang}-`)),
+      outDir: mkdtempSync(join(tmpdir(), `chisel-agent-${lang}-`)),
       runner: claudeRunner,
       onProgress: (l) => progress.push(l),
     });

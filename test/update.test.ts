@@ -9,7 +9,7 @@ const ARCH = "module app  @id m_app\n  fn greet()  @id f_greet\n    intent: Says
 const git = (repo: string, ...args: string[]) => execFileSync("git", ["-C", repo, ...args], { encoding: "utf8" }).trim();
 
 function repo(files: Record<string, string> = { "src/app.ts": "// @id f_greet\nexport const greet = () => 'hi';\n" }) {
-  const dir = mkdtempSync(join(tmpdir(), "scaffold-repo-"));
+  const dir = mkdtempSync(join(tmpdir(), "chisel-repo-"));
   git(dir, "init", "-q", "-b", "main");
   git(dir, "config", "user.email", "t@example.com");
   git(dir, "config", "user.name", "t");
@@ -47,7 +47,7 @@ describe("update (an existing repository, in place)", () => {
     const result = await update({ arch: ARCH, repo: dir, checks: [["npm", "test"]], runner, verify: passes });
 
     expect(result.ok).toBe(true);
-    expect(result.branch).toMatch(/^scaffold\/\d{4}-/);
+    expect(result.branch).toMatch(/^chisel\/\d{4}-/);
     expect(git(dir, "branch", "--show-current")).toBe(result.branch);
     expect(result.files).toEqual(["src/app.ts"]);
     expect(prompt).toContain("npm test");
@@ -56,9 +56,9 @@ describe("update (an existing repository, in place)", () => {
 
   it("refuses a repository with uncommitted changes, apart from the board's own files", async () => {
     const dir = repo();
-    writeFileSync(join(dir, "me.scaffold.json"), "{}");
+    writeFileSync(join(dir, "me.chisel.json"), "{}");
     writeFileSync(join(dir, "me.arch.md"), "x");
-    const allowed = { arch: ARCH, repo: dir, checks: [], runner: editingAgent({}), verify: passes, boardFiles: ["me.scaffold.json", "me.arch.md"] };
+    const allowed = { arch: ARCH, repo: dir, checks: [], runner: editingAgent({}), verify: passes, boardFiles: ["me.chisel.json", "me.arch.md"] };
     await expect(update(allowed)).resolves.toMatchObject({ ok: true });
 
     const dirty = repo();
@@ -83,7 +83,7 @@ describe("update (an existing repository, in place)", () => {
   });
 
   it("refuses a folder that is not the root of a git repository", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "scaffold-norepo-"));
+    const dir = mkdtempSync(join(tmpdir(), "chisel-norepo-"));
     await expect(update({ arch: ARCH, repo: dir, checks: [], runner: editingAgent({}), verify: passes })).rejects.toThrow(/not the root of a git repository/);
     expect(existsSync(join(dir, ".git"))).toBe(false);
   });

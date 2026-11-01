@@ -19,7 +19,7 @@ export function App() {
   // With loose handles React Flow reports the drag's start as the target when it began on a left handle;
   // an edge always points from the block the drag started on.
   const connectFrom = useRef<string | null>(null);
-  const [path, setPath] = useState("~/scaffold-boards/untitled.scaffold.json");
+  const [path, setPath] = useState("~/chisel-boards/untitled.chisel.json");
   const [status, setStatus] = useState<{ ok: boolean; msg: string } | null>(null);
   const [lang, setLang] = useState<Lang>("python");
   const [run, setRun] = useState<Run | null>(null);
@@ -196,7 +196,7 @@ export function App() {
     resetHistory();
     show({ version: 1, name: "untitled", blocks: [], edges: [] });
     // Always a fresh file name, so the next Save can't overwrite the board that was open.
-    setPath(path.slice(0, path.lastIndexOf("/") + 1) + "untitled.scaffold.json");
+    setPath(path.slice(0, path.lastIndexOf("/") + 1) + "untitled.chisel.json");
   };
 
   const save = async () => {
@@ -288,7 +288,7 @@ export function App() {
           <svg aria-hidden="true">
             <use href="/blueprint.svg#mark" />
           </svg>
-          scaffold
+          chisel
         </span>
         <input aria-label="Board name" value={name} onChange={(e) => setName(e.target.value)} />
         <input aria-label="Board file path" className="path" value={path} onChange={(e) => setPath(e.target.value)} />
