@@ -14,7 +14,11 @@ export const GENERATORS: Partial<Record<Lang, LangSpec>> = {
     layout: [
       "- A pyproject.toml package. The package name is the board name in snake_case.",
       "- Each `module` becomes `<package>/<module>.py`; a module nested in a module becomes a subpackage.",
-      "- Blocks outside any module go in `<package>/main.py`.",
+      "- The top-level `main` module becomes `<package>/main.py`.",
+      "- class → class; field → typed attribute (a @dataclass when the class is mostly data); interface → typing.Protocol.",
+      "- type struct → @dataclass; type enum → enum.Enum; const → module-level `Final`.",
+      "- service → a small client class whose connection settings come from environment variables.",
+      "- entry main → `<package>/__main__.py`; entry cli → an argparse command; entry http → a route in the board's HTTP library, else `http.server`.",
       "- Library blocks become `[project] dependencies`; pick the most common package for the capability unless an override names one.",
       "- Use type hints everywhere. Python 3.12+.",
     ].join("\n"),
@@ -38,7 +42,10 @@ export function buildPrompt(lang: Lang, archFile: string, resultFile: string): s
   const spec = generatorFor(lang);
   return `You are generating a ${spec.label} project from an architecture file.
 
-Read ./${archFile}. It is indentation-based pseudocode: indentation is containment, every block line ends with \`@id <id>\`, functions carry a loose signature, an \`intent:\` and optional \`steps:\`.
+Read ./${archFile}. It is indentation-based pseudocode:
+- Indentation is containment. Every block line ends with \`@id <id>\`.
+- Block keywords: module, class, interface, fn (loose signature), field (name: type), const (name: type = value), type <name> struct|enum (with \`members:\`), library <capability> (with optional per-language package lines like \`python: requests\`), service (with \`description:\`), entry main|http|cli <name> (with \`detail:\`, e.g. a route).
+- \`intent:\` and \`steps:\` say what a function must do; \`notes:\` on any block is guidance for you.
 
 Write the project into the current directory and nowhere else.
 

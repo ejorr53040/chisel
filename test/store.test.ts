@@ -22,6 +22,12 @@ describe("board file store", () => {
     );
   });
 
+  it("round-trips a board with every block kind", () => {
+    const path = join(tmp(), "shop.scaffold.json");
+    saveBoard(path, fixture("all-kinds"));
+    expect(loadBoard(path)).toEqual(fixture("all-kinds"));
+  });
+
   it("creates the board's folder when it does not exist yet", () => {
     const path = join(tmp(), "boards", "nested", "shop.scaffold.json");
     saveBoard(path, fixture("nested-modules"));
@@ -64,6 +70,37 @@ describe("board file store", () => {
         ],
       }),
       /cannot contain/,
+    ],
+    [
+      "field inside an interface",
+      JSON.stringify({
+        version: 1, name: "x", edges: [],
+        blocks: [
+          { id: "i", kind: "interface", name: "I", position: { x: 0, y: 0 } },
+          { id: "x", kind: "field", name: "f", parentId: "i", position: { x: 0, y: 0 }, type: "" },
+        ],
+      }),
+      /interface cannot contain a field/,
+    ],
+    [
+      "type with an unknown shape",
+      JSON.stringify({ version: 1, name: "x", edges: [], blocks: [{ id: "t", kind: "type", name: "T", position: { x: 0, y: 0 }, shape: "blob", members: [] }] }),
+      /type t needs shape/,
+    ],
+    [
+      "entry with an unknown trigger",
+      JSON.stringify({ version: 1, name: "x", edges: [], blocks: [{ id: "e", kind: "entry", name: "e", position: { x: 0, y: 0 }, trigger: "cron", detail: "" }] }),
+      /entry e needs trigger/,
+    ],
+    [
+      "library override for an unknown language",
+      JSON.stringify({ version: 1, name: "x", edges: [], blocks: [{ id: "l", kind: "library", name: "http", position: { x: 0, y: 0 }, overrides: { cobol: "x" } }] }),
+      /library l needs overrides/,
+    ],
+    [
+      "the reserved default-module id",
+      JSON.stringify({ version: 1, name: "x", edges: [], blocks: [{ id: "_main", kind: "service", name: "s", position: { x: 0, y: 0 }, description: "" }] }),
+      /_main is reserved/,
     ],
   ])("rejects a malformed board file (%s) with a readable error", (_case, contents, message) => {
     const path = join(tmp(), "bad.scaffold.json");

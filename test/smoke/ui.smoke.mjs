@@ -21,7 +21,7 @@ try {
   await page.getByLabel("Intent").fill("Checks the password.");
 
   // Nudge the function so drag-stop runs; it lands inside the module and gets nested.
-  const fn = await page.locator(".react-flow__node-function").boundingBox();
+  const fn = await page.locator(".react-flow__node-function").first().boundingBox();
   await page.mouse.move(fn.x + 20, fn.y + 10);
   await page.mouse.down();
   await page.mouse.move(fn.x + 60, fn.y + 60, { steps: 8 });
@@ -57,6 +57,23 @@ try {
   await page.getByRole("button", { name: "Save" }).click();
   await page.getByRole("status").filter({ hasText: "saved" }).waitFor();
   assert.deepEqual(JSON.parse(readFileSync(withEdges, "utf8")).edges, original.edges);
+
+  // #3: every kind is in the palette; a field dropped on a class becomes a member; library overrides reach the DSL.
+  for (const label of ["Module", "Class", "Interface", "Function", "Field", "Constant", "Type / Enum", "Library", "External service", "Entry point"])
+    assert.equal(await page.getByRole("button", { name: `+ ${label}` }).count(), 1, label);
+  await page.getByRole("button", { name: "+ Class" }).click();
+  await page.getByRole("button", { name: "+ Field" }).click();
+  const field = await page.locator(".react-flow__node-field").boundingBox();
+  await page.mouse.move(field.x + 10, field.y + 8);
+  await page.mouse.down();
+  await page.mouse.move(field.x + 30, field.y + 20, { steps: 6 });
+  await page.mouse.up();
+  await page.getByRole("button", { name: "+ Library" }).click();
+  await page.getByLabel("Name", { exact: true }).fill("HTTP client");
+  await page.getByLabel("Python package (optional)").fill("requests");
+  const catalog = await preview.textContent();
+  assert.match(catalog, /^( *)class Class {2}@id c_\w+\n\1 {2}field field {2}@id f_\w+$/m, catalog);
+  assert.match(catalog, /^ {2}library HTTP client {2}@id l_\w+\n {4}python: requests$/m, catalog);
 
   // Opt-in: Generate through the UI with the real agent (SCAFFOLD_AGENT_SMOKE=1).
   if (process.env.SCAFFOLD_AGENT_SMOKE) {
