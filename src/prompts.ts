@@ -33,9 +33,10 @@ export const GENERATORS: Partial<Record<Lang, LangSpec>> = {
   rust: {
     label: "Rust",
     layout: [
-      "- A Cargo package (edition 2021). The crate name is the board name in snake_case.",
+      "- A Cargo package (edition 2021). The crate name is the board name in snake_case. Cargo.toml must contain an empty `[workspace]` table so an enclosing workspace is ignored.",
       "- A library crate: `src/lib.rs` declares one `pub mod` per top-level module; each `module` becomes `src/<module>.rs`, and a module nested in a module becomes `src/<parent>/<child>.rs`.",
-      "- If the board has an `entry main`, also write `src/main.rs` that calls into the library.",
+      "- The top-level `main` module becomes `src/app.rs` (`pub mod app`), never `src/main.rs`.",
+      "- If the board has an `entry main`, also write `src/main.rs` (the binary) that calls into the library.",
       "- class → `pub struct` + `impl`; field → struct field; interface → `pub trait`; implements → `impl Trait for Struct`.",
       "- inherits → Rust has no inheritance: embed the parent struct as a field and move shared behaviour into a trait both implement. Record this in MAPPING.md.",
       "- type struct → `#[derive(Debug, Clone, PartialEq)] pub struct`; type enum → `pub enum` with the same derives; const → `pub const`.",
@@ -47,6 +48,29 @@ export const GENERATORS: Partial<Record<Lang, LangSpec>> = {
     checks: [["cargo", "check", "--quiet", "--color", "never"]],
     // cargo check still runs build scripts and proc macros from dependencies; see the README's trust note.
     tools: ["Bash(cargo check:*)", "Bash(cargo add:*)", "Bash(cargo metadata:*)"],
+  },
+  cpp: {
+    label: "C++",
+    layout: [
+      "- A CMake project (cmake_minimum_required 3.24, C++20). The project name is the board name in snake_case.",
+      "- Each `module` becomes `include/<project>/<module>.hpp` (declarations) + `src/<module>.cpp` (definitions) in namespace `<project>::<module>`; a module nested in a module nests both the folders and the namespace.",
+      "- The top-level `main` module becomes `include/<project>/app.hpp` + `src/app.cpp` in namespace `<project>::app`.",
+      "- Build the modules as a library target `<project>_lib`. If the board has an `entry main`, add an executable whose `int main` lives in `src/app_main.cpp`.",
+      "- class → class with its declaration in the header and member definitions in the .cpp; field → private member with accessors only where other blocks need them; interface → abstract class of pure virtual methods with a virtual destructor.",
+      "- implements / inherits → public inheritance (override every pure virtual).",
+      "- type struct → struct; type enum → `enum class`; const → `inline constexpr` in the header.",
+      "- service → a client class whose connection settings come from environment variables (std::getenv).",
+      "- Library blocks become `FetchContent_Declare` + `FetchContent_MakeAvailable` dependencies (pick a well-known library unless an override names one; for an HTTP server default to cpp-httplib). Nothing may require a system package.",
+      "- entry http → a handler in the board's HTTP library; entry cli → argv parsing in main.",
+      "- Prefer RAII and value types; no raw new/delete.",
+    ].join("\n"),
+    verify: "`cmake -S . -B build` then `cmake --build build -j 8`",
+    checks: [
+      ["cmake", "-S", ".", "-B", "build"],
+      ["cmake", "--build", "build", "-j", "8"],
+    ],
+    // Configuring runs the project's CMake code and fetched dependencies; see the README's trust note.
+    tools: ["Bash(cmake -S:*)", "Bash(cmake --build:*)"],
   },
 };
 
@@ -73,7 +97,7 @@ ${spec.layout}
 
 Rules:
 - Implement every function body as real, working code that fulfils its intent and steps. No stubs, no TODOs, no NotImplementedError.
-- Use the block names as identifiers, adjusted only to the language's naming conventions.
+- Use the block names as identifiers, adjusted only to the language's naming conventions. If a derived package, crate or project name would be empty, start with a digit or clash with a reserved/standard name, prefix it with \`app_\`.
 - Put a comment \`@id <id>\` in the language's comment syntax (\`# @id x\`, \`// @id x\`) on the line above each definition that comes from a block.
 - Write MAPPING.md: one line per block (id → file and symbol), then a section listing every place the ${spec.label} output had to deviate from the board (lossy translations) and anything you could not implement.
 

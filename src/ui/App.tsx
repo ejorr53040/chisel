@@ -244,8 +244,8 @@ export function App() {
           <div className="label">Architecture file</div>
           {warnings.length > 0 && (
             <ul className="warnings" aria-label={`Warnings for ${GENERATORS[lang]?.label ?? lang}`}>
-              {warnings.map((w) => (
-                <li key={w.edgeId ?? w.blockId}>⚠ {w.message}</li>
+              {warnings.map((w, i) => (
+                <li key={w.edgeId ?? w.blockId ?? i}>⚠ {w.message}</li>
               ))}
             </ul>
           )}
