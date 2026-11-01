@@ -83,6 +83,12 @@ export function validate(data: unknown): Board {
     if (e.label !== undefined && !isText(e.label)) fail(`edge ${e.id} has a label that is not text`);
     if (e.label !== undefined && e.kind !== "other") fail(`edge ${e.id} is "${e.kind}", but only "other" edges have labels`);
   });
+  if (b.target !== undefined) {
+    if (typeof b.target !== "object" || b.target === null || typeof b.target.repo !== "string" || !b.target.repo.trim())
+      fail("target needs a repo path");
+    if (!Array.isArray(b.target.checks) || !b.target.checks.every((c) => isTextList(c) && c.length > 0))
+      fail("target checks must be commands, each a list of words");
+  }
   // A parent cycle would make its blocks vanish from the architecture file.
   for (const x of b.blocks) {
     const seen = new Set<string>();

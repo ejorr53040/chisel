@@ -1,15 +1,14 @@
 import { spawn } from "node:child_process";
 import type { Runner } from "./generate";
-import { allowedTools } from "./prompts";
 
 // The real agent: Claude Code in print mode, auto-accepting edits in the run folder and allowed only the
 // language's verifier commands. That limits but does not sandbox it: the verifier itself runs project code.
-export const claudeRunner: Runner = ({ prompt, cwd, lang, onProgress, signal }) =>
+export const claudeRunner: Runner = ({ prompt, cwd, tools, onProgress, signal }) =>
   new Promise((resolve) => {
     // The prompt goes on stdin; a big board would overflow the argv size limit.
     const child = spawn(
       "claude",
-      ["-p", "--output-format", "stream-json", "--verbose", "--permission-mode", "acceptEdits", "--allowedTools", ...allowedTools(lang)],
+      ["-p", "--output-format", "stream-json", "--verbose", "--permission-mode", "acceptEdits", "--allowedTools", ...tools],
       { cwd, stdio: ["pipe", "pipe", "pipe"] },
     );
     const stop = () => child.kill("SIGTERM");

@@ -20,6 +20,18 @@ Generate needs [Claude Code](https://claude.com/claude-code) (`claude`) on PATH,
 
 Boards are saved as `<name>.scaffold.json` (source of truth) plus a derived `<name>.arch.md`. The architecture file grammar is in [docs/adr/0001](docs/adr/0001-architecture-file-grammar.md).
 
+### Changing an existing codebase, including Scaffold itself
+
+With nothing selected, the inspector's **Board** panel sets where Generate goes. Choose **existing repository**, give the repo folder (relative to the board file) and its check commands, and Generate becomes **Update repo**: the agent updates that repository in place on a new `scaffold/<timestamp>` branch, and the repo's own checks decide whether the run is verified. The repository must have no uncommitted changes other than the board and its `.arch.md`.
+
+Scaffold describes itself in [`scaffold.scaffold.json`](scaffold.scaffold.json), which targets this repo with `npx tsc --noEmit` and `npx vitest run`. To change Scaffold through Scaffold:
+
+```sh
+npm start          # builds the UI and serves it without file watching, so the run survives its own edits
+```
+
+Open `scaffold.scaffold.json`, edit blocks, press **Update repo**, review the branch it made (`git diff main`), then restart `npm start` to run the new version.
+
 ### Trust
 
 Generate runs Claude Code on your machine with the board's text as instructions. The agent can only edit files in the run folder and run the target's verifier commands, and the API refuses requests from any page but this app's own. But verifiers execute project code (build scripts, mypy plugins), so only generate boards you trust, as you would only run code you trust.

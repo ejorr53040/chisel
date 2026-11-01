@@ -140,11 +140,19 @@ export interface Edge {
   label?: string; // only for "other"
 }
 
+// Where Generate goes: without a target, a fresh project per run in out/<lang>/; with one, the existing
+// repository is updated in place and checked with its own commands.
+export interface Target {
+  repo: string; // relative to the board file
+  checks: string[][]; // commands, e.g. [["npm", "test"]]
+}
+
 export interface Board {
   version: 1;
   name: string;
   blocks: Block[];
   edges: Edge[];
+  target?: Target;
 }
 
 export function newId(prefix: string): string {

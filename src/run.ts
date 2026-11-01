@@ -11,6 +11,7 @@ export interface GenerateResult {
   files: string[];
   errors: GenError[];
   cancelled?: boolean;
+  branch?: string; // set when a repository was updated in place
 }
 
 export const failedResult = (message: string, runDir = "", files: string[] = []): GenerateResult => ({

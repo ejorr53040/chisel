@@ -1,4 +1,5 @@
-import { EDGE_KINDS, LANGS, TRIGGERS, type Block, type Edge } from "../board";
+import { useState } from "react";
+import { EDGE_KINDS, LANGS, TRIGGERS, type Block, type Edge, type Target } from "../board";
 
 type Patch = Partial<Block>;
 
@@ -107,6 +108,41 @@ export function EdgeInspector({
         Delete edge
       </button>
       <p className="meta">@edge {edge.id}</p>
+    </div>
+  );
+}
+
+// Shown when nothing is selected: where Generate sends this board.
+export function BoardInspector({ target, onChange }: { target?: Target; onChange: (t?: Target) => void }) {
+  // Raw text while typing; the parsed commands go to the board.
+  const [commands, setCommands] = useState((target?.checks ?? []).map((c) => c.join(" ")).join("\n"));
+  return (
+    <div className="stack">
+      <p className="meta">Select a block or edge to edit it. Drag from a block's side handle to another block to connect them.</p>
+      <div className="label">Board</div>
+      <Choice
+        id="b-target"
+        label="Generate into"
+        value={target ? "existing repository" : "new project"}
+        options={["new project", "existing repository"] as const}
+        onChange={(v) => onChange(v === "new project" ? undefined : { repo: ".", checks: [] })}
+      />
+      {target && (
+        <>
+          <Text id="b-repo" label="Repository folder (relative to the board file)" value={target.repo} onChange={(repo) => onChange({ ...target, repo })} />
+          <Text
+            id="b-checks"
+            label="Check commands, one per line"
+            rows={3}
+            value={commands}
+            onChange={(v) => {
+              setCommands(v);
+              onChange({ ...target, checks: v.split("\n").map((l) => l.trim().split(/\s+/).filter(Boolean)).filter((c) => c.length) });
+            }}
+          />
+          <p className="meta">Update repo works on a new scaffold/… branch and needs the repository to have no uncommitted changes besides this board.</p>
+        </>
+      )}
     </div>
   );
 }

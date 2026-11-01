@@ -4,6 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "start": "vite build && vite preview --port 5173 --strictPort",
     "build": "tsc --noEmit && vite build",
     "test": "vitest run",
     "smoke:ui": "node test/smoke/ui.smoke.mjs"
