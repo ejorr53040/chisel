@@ -48,6 +48,24 @@ describe("generate", () => {
     expect(result.errors).toEqual([]);
   });
 
+  it("generates TypeScript as an ESM npm package checked by tsc, allowing only the install and type-check", async () => {
+    const outDir = tmp();
+    let seen: { prompt: string; tools: string[] } | undefined;
+    const runner: Runner = async (job) => {
+      seen = job;
+      return succeeds(job);
+    };
+
+    const result = await run({ lang: "typescript", outDir, runner });
+
+    expect(result.runDir.startsWith(join(outDir, "typescript") + "/")).toBe(true);
+    expect(seen!.prompt).toContain("You are generating a TypeScript project");
+    expect(seen!.prompt).toContain('"type": "module"');
+    expect(seen!.prompt).toContain("NodeNext");
+    expect(seen!.prompt).toContain("`npm install --ignore-scripts`, then `npx tsc --noEmit`");
+    expect(seen!.tools).toEqual(["Read", "Write", "Edit", "Glob", "Grep", "Bash(ls:*)", "Bash(npm install --ignore-scripts:*)", "Bash(npx tsc --noEmit:*)"]);
+  });
+
   it("forwards the agent's progress", async () => {
     const lines: string[] = [];
     await run({ onProgress: (l) => lines.push(l) });

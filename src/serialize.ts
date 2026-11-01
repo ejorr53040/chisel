@@ -73,6 +73,19 @@ const LOSSY: Partial<Record<Lang, (board: Board, byId: Map<string, Block>) => Wa
         blockId: e.source,
         message: `Rust has no inheritance: ${oneLine(byId.get(e.source)!.name)} will embed ${oneLine(byId.get(e.target)!.name)} and share behaviour through a trait.`,
       })),
+  // Single inheritance: the first parent (by edge id) stays `extends`; each further one is warned about.
+  typescript: (board, byId) => {
+    const firstParent = new Map<string, string>();
+    const name = (id: string) => oneLine(byId.get(id)!.name);
+    return board.edges
+      .filter((e) => e.kind === "inherits" && byId.has(e.source) && byId.has(e.target))
+      .sort((a, b) => byCodePoint(a.id, b.id))
+      .flatMap((e) => {
+        const first = firstParent.get(e.source);
+        if (!first) return firstParent.set(e.source, e.target), [];
+        return [{ edgeId: e.id, blockId: e.source, message: `TypeScript classes extend one parent: ${name(e.source)} will extend ${name(first)} and take ${name(e.target)} as an interface or a field.` }];
+      });
+  },
 };
 
 export function serialize(board: Board, lang?: Lang): { arch: string; warnings: Warning[] } {

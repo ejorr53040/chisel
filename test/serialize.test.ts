@@ -144,6 +144,30 @@ describe("serialize warns about lossy mappings for the target language", () => {
     ]);
   });
 
+  it("warns for TypeScript when a class inherits from more than one parent, once per extra parent", () => {
+    const at = { x: 0, y: 0 };
+    const board: Board = {
+      version: 1,
+      name: "zoo",
+      blocks: [
+        { id: "c_a", kind: "class", name: "Animal", position: at },
+        { id: "c_p", kind: "class", name: "Pet", position: at },
+        { id: "c_d", kind: "class", name: "Dog", position: at },
+      ],
+      edges: [
+        { id: "e_1", source: "c_d", target: "c_a", kind: "inherits" },
+        { id: "e_2", source: "c_d", target: "c_p", kind: "inherits" },
+      ],
+    };
+    expect(serialize(board, "typescript").warnings).toEqual([
+      { edgeId: "e_2", blockId: "c_d", message: "TypeScript classes extend one parent: Dog will extend Animal and take Pet as an interface or a field." },
+    ]);
+  });
+
+  it("gives no TypeScript warning for single inheritance", () => {
+    expect(serialize(fixture("edges"), "typescript").warnings).toEqual([]);
+  });
+
   it("gives no warnings for the same board in Python", () => {
     expect(serialize(fixture("edges"), "python").warnings).toEqual([]);
   });

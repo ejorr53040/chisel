@@ -16,7 +16,7 @@
       "shape": "enum", "members": ["open", "paid", ""] },
     { "id": "t_line", "kind": "type", "name": "LineItem", "parentId": "m_shop", "position": { "x": 0, "y": 380 },
       "shape": "struct", "members": ["sku: str", "qty: int"] },
-    { "id": "l_http", "kind": "library", "name": "HTTP server", "position": { "x": 600, "y": 0 }, "overrides": { "cpp": "drogon", "python": "fastapi", "rust": "axum" } },
+    { "id": "l_http", "kind": "library", "name": "HTTP server", "position": { "x": 600, "y": 0 }, "overrides": { "cpp": "drogon", "python": "fastapi", "rust": "axum", "typescript": "fastify" } },
     { "id": "s_db", "kind": "service", "name": "postgres", "position": { "x": 600, "y": 100 }, "description": "Stores carts." },
     { "id": "e_api", "kind": "entry", "name": "checkout", "position": { "x": 600, "y": 200 }, "trigger": "http", "detail": "POST /checkout" },
     { "id": "e_main", "kind": "entry", "name": "main", "position": { "x": 600, "y": 300 }, "trigger": "main", "detail": "" }

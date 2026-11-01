@@ -1,6 +1,6 @@
 // Board model shared by the UI and the server. The board file is the source of truth.
 
-export type Lang = "python" | "rust" | "cpp";
+export type Lang = "python" | "rust" | "cpp" | "typescript";
 
 interface BlockBase {
   id: string;
@@ -99,7 +99,7 @@ export const CONTAINS: Partial<Record<Kind, readonly Kind[]>> = {
 };
 export const canContain = (parent: Kind, child: Kind) => CONTAINS[parent]?.includes(child) ?? false;
 
-export const LANGS: readonly Lang[] = ["python", "rust", "cpp"];
+export const LANGS: readonly Lang[] = ["python", "rust", "cpp", "typescript"];
 export const TRIGGERS = ["main", "http", "cli"] as const;
 
 export function newBlock(kind: Kind, position: { x: number; y: number }): Block {
