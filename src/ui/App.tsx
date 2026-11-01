@@ -25,10 +25,11 @@ export function App() {
   const [run, setRun] = useState<Run | null>(null);
   const [help, setHelp] = useState(false);
   const [target, setTarget] = useState<Target | undefined>();
+  const [unindexed, setUnindexed] = useState<string[] | undefined>();
   const board = useMemo(() => {
     const b = fromNodes(nodes, name, edges);
-    return target ? { ...b, target } : b;
-  }, [nodes, name, edges, target]);
+    return { ...b, ...(target && { target }), ...(unindexed && { unindexed }) };
+  }, [nodes, name, edges, target, unindexed]);
   const { arch, warnings } = useMemo(() => serialize(board, lang), [board, lang]);
   const blockWarnings = useMemo(() => {
     const byBlock = new Map<string, string[]>();
@@ -131,6 +132,7 @@ export function App() {
   const show = (next: Board, select: string[] = []) => {
     setName(next.name);
     setTarget(next.target);
+    setUnindexed(next.unindexed);
     setNodes(toNodes(next).map((n) => ({ ...n, selected: select.includes(n.id) })));
     setFlowEdges(next.edges.map((e) => toFlowEdge(e)));
   };

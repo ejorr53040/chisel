@@ -9,6 +9,22 @@ interface BlockBase {
   position: { x: number; y: number };
   size?: { width: number; height: number };
   notes?: string;
+  source?: Source; // only on imported blocks
+  importWarnings?: ImportWarning[];
+}
+
+// Where an imported block's code lives: tesselate's qualified id, its file, and its line (0 for a folder).
+export interface Source {
+  id: string;
+  path: string;
+  line: number;
+}
+
+// Something import could not be sure of, shown as an amber badge until the next import replaces it.
+export const IMPORT_WARNING_KINDS = ["no-intent"] as const;
+export interface ImportWarning {
+  kind: (typeof IMPORT_WARNING_KINDS)[number];
+  message: string;
 }
 
 export interface ModuleBlock extends BlockBase {
@@ -153,6 +169,7 @@ export interface Board {
   blocks: Block[];
   edges: Edge[];
   target?: Target;
+  unindexed?: string[]; // files tesselate skipped on the last import
 }
 
 export function newId(prefix: string): string {

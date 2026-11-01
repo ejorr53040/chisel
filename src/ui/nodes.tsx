@@ -113,11 +113,12 @@ export const BlockWarnings = createContext<ReadonlyMap<string, string[]>>(new Ma
 function Title({ block }: { block: Block }) {
   const [keyword, ...rest] = blockLine(block).split(" ");
   const errors = useContext(BlockErrors).get(block.id);
-  const warnings = useContext(BlockWarnings).get(block.id);
+  // Lossy-mapping and import warnings share the amber badge; red stays for generation errors.
+  const warnings = [...(useContext(BlockWarnings).get(block.id) ?? []), ...(block.importWarnings ?? []).map((w) => w.message)];
   return (
     <div className="block-title">
       <span className="kw">{keyword}</span> {rest.join(" ")}
-      {warnings && (
+      {warnings.length > 0 && (
         <span className="warn-badge" role="img" aria-label={`Warning: ${warnings.join(" ")}`} title={warnings.join("\n")}>
           ⚠
         </span>

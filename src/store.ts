@@ -1,6 +1,6 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
-import { BLOCK_KINDS, EDGE_KINDS, LANGS, TRIGGERS, canContain, type Block, type Board, type Kind, type Lang } from "./board";
+import { BLOCK_KINDS, EDGE_KINDS, IMPORT_WARNING_KINDS, LANGS, TRIGGERS, canContain, type Block, type Board, type Kind, type Lang } from "./board";
 import { DEFAULT_MODULE, serialize } from "./serialize";
 
 const KINDS = new Set<string>(BLOCK_KINDS);
@@ -68,6 +68,12 @@ export function validate(data: unknown): Board {
     const missing = FIELDS[x.kind].filter(([key, ok]) => !ok((x as unknown as Record<string, unknown>)[key])).map(([key]) => key);
     if (missing.length) fail(`${x.kind} ${x.id} needs ${missing.join(", ")}`);
     if (x.notes !== undefined && !isText(x.notes)) fail(`block ${x.id} has notes that are not text`);
+    const src = x.source;
+    if (src !== undefined && !(typeof src === "object" && src !== null && isText(src.id) && isText(src.path) && Number.isInteger(src.line)))
+      fail(`block ${x.id} needs a source with an id, a path and a line`);
+    const warnings = x.importWarnings;
+    if (warnings !== undefined && !(Array.isArray(warnings) && warnings.every((w) => IMPORT_WARNING_KINDS.includes(w?.kind) && isText(w.message))))
+      fail(`block ${x.id} has import warnings that are not a list of known kinds with messages`);
     if (x.parentId === undefined) continue;
     const parent = byId.get(x.parentId);
     if (!parent) fail(`block ${x.id} has parent "${x.parentId}" that does not exist`);
@@ -83,6 +89,7 @@ export function validate(data: unknown): Board {
     if (e.label !== undefined && !isText(e.label)) fail(`edge ${e.id} has a label that is not text`);
     if (e.label !== undefined && e.kind !== "other") fail(`edge ${e.id} is "${e.kind}", but only "other" edges have labels`);
   });
+  if (b.unindexed !== undefined && !isTextList(b.unindexed)) fail("unindexed must be a list of file paths");
   if (b.target !== undefined) {
     if (typeof b.target !== "object" || b.target === null || typeof b.target.repo !== "string" || !b.target.repo.trim())
       fail("target needs a repo path");

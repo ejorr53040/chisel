@@ -59,6 +59,21 @@ try {
   await page.getByRole("status").filter({ hasText: "saved" }).waitFor();
   assert.deepEqual(JSON.parse(readFileSync(withEdges, "utf8")).edges, original.edges);
 
+  // #25: an imported board shows its import warnings on the amber badge, and re-saving keeps sources and unindexed files.
+  const imported = join(mkdtempSync(join(tmpdir(), "chisel-smoke-")), "shop.chisel.json");
+  writeFileSync(imported, readFileSync(new URL("../fixtures/import/shop.chisel.json", import.meta.url), "utf8"));
+  await page.getByLabel("Board file path").fill(imported);
+  await page.getByRole("button", { name: "Open", exact: true }).click();
+  await page.getByRole("status").filter({ hasText: "opened" }).waitFor();
+  await page.locator(".react-flow__node-function", { hasText: "total" }).getByRole("img", { name: /No doc comment/ }).waitFor();
+  assert.equal(await page.locator(".react-flow__node-function", { hasText: "addItem" }).locator(".warn-badge").count(), 0);
+  await page.screenshot({ path: process.env.IMPORT_SHOT ?? join(tmpdir(), "chisel-smoke-import.png") });
+  await page.getByRole("button", { name: "Save" }).click();
+  await page.getByRole("status").filter({ hasText: "saved" }).waitFor();
+  const resaved = JSON.parse(readFileSync(imported, "utf8"));
+  assert.deepEqual(resaved.unindexed, ["vendor/legacy.js"]);
+  assert.deepEqual(resaved.blocks.find((b) => b.id === "f_src.cart.total").source, { id: "src.cart.total", path: "src/cart.ts", line: 10 });
+
   // #3: every kind is in the palette; a field dropped on a class becomes a member; library overrides reach the DSL.
   for (const label of ["Module", "Class", "Interface", "Function", "Field", "Constant", "Type / Enum", "Library", "External service", "Entry point"])
     assert.equal(await page.getByRole("button", { name: `+ ${label}` }).count(), 1, label);
