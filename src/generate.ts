@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { join, resolve, sep } from "node:path";
 import { promisify } from "node:util";
 import type { Lang } from "./board";
 import { buildPrompt, generatorFor } from "./prompts";
@@ -51,6 +51,7 @@ export async function generate({
   writeFileSync(join(runDir, ARCH_FILE), arch);
 
   const result = await runAgent(runDir, lang, prompt, runner, verify, onProgress, signal);
+  result.errors = attribute(runDir, arch, result.errors);
   writeFileSync(join(runDir, STATUS_FILE), JSON.stringify({ ok: result.ok }));
   prune(langDir);
   return result;
@@ -86,6 +87,40 @@ async function runAgent(
   onProgress("re-checking the project");
   const checkErrors = await verify(runDir, lang);
   return { ok: checkErrors.length === 0, runDir, files: listFiles(runDir), errors: checkErrors };
+}
+
+// A compiler-style "path:line[:col]:" diagnostic line.
+const DIAGNOSTIC = /^([\w./-]+\.\w+):(\d+)(?::\d+)?:/;
+const ID = /@id\s+(\w+)/;
+
+// Ties each error to the board block it is about: the agent's blockId, an "@id x" in the message, or for a
+// file:line diagnostic the nearest "@id" comment above that line in the generated code. Checker output is split
+// into one error per diagnostic. Ids that are not on the board are dropped.
+function attribute(runDir: string, arch: string, errors: GenError[]): GenError[] {
+  const known = new Set([...arch.matchAll(new RegExp(ID, "g"))].map((m) => m[1]));
+  return errors
+    .flatMap((e) => {
+      const diagnostics = e.message.split("\n").filter((line) => DIAGNOSTIC.test(line));
+      return !e.blockId && diagnostics.length ? diagnostics.map((message): GenError => ({ message })) : [e];
+    })
+    .map((e) => {
+      const id = e.blockId ?? ID.exec(e.message)?.[1] ?? idAbove(runDir, e.message);
+      return id && known.has(id) ? { blockId: id, message: e.message } : { message: e.message };
+    });
+}
+
+// ponytail: the nearest @id above a line can be a sibling when the error is in module-level code between
+// definitions; good enough to point at the right area of the board.
+function idAbove(runDir: string, message: string): string | undefined {
+  const [, path, line] = DIAGNOSTIC.exec(message) ?? [];
+  if (!path) return;
+  const file = resolve(runDir, path);
+  if (!file.startsWith(runDir + sep) || !existsSync(file)) return;
+  const lines = readFileSync(file, "utf8").split("\n");
+  for (let i = Math.min(Number(line), lines.length) - 1; i >= 0; i--) {
+    const id = ID.exec(lines[i])?.[1];
+    if (id) return id;
+  }
 }
 
 const exec = promisify(execFile);

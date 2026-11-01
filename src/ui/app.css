@@ -44,3 +44,11 @@ body { background: var(--bg); color: var(--text); font-family: var(--font-body);
 .run-errors { margin: 0; padding-left: var(--s4); font-size: var(--t-xs); color: var(--err); overflow: auto; max-height: 8em; }
 .run pre { font-size: var(--t-xs); margin: 0; overflow: auto; }
 .run-log { flex: 1; min-height: 3em; color: var(--dim); }
+
+.error-badge {
+  display: inline-grid; place-items: center; min-width: 18px; height: 18px; margin-left: 6px; padding: 0 5px;
+  border-radius: var(--r-pill); background: var(--err); color: var(--on-err); font-family: var(--font-mono); font-size: var(--t-xs);
+  vertical-align: middle; box-sizing: border-box;
+}
+.error-link { padding: 0 var(--s1); color: var(--err); }
+.run-errors li { margin-bottom: var(--s1); white-space: pre-wrap; }

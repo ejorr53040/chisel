@@ -75,6 +75,21 @@ try {
   assert.match(catalog, /^( *)class Class {2}@id c_\w+\n\1 {2}field field {2}@id f_\w+$/m, catalog);
   assert.match(catalog, /^ {2}library HTTP client {2}@id l_\w+\n {4}python: requests$/m, catalog);
 
+  // #6: a failed run's errors badge their blocks, and clicking an error selects its block. The run is replayed.
+  const libraryId = /library HTTP client {2}@id (\w+)/.exec(await preview.textContent())[1];
+  const done = { ok: false, runDir: "/tmp/run", files: [], errors: [{ blockId: libraryId, message: "lib.py:3: error: bad import" }, { message: "pyproject.toml is invalid" }] };
+  await page.route("**/api/generate**", (route) =>
+    route.fulfill({ status: 200, contentType: "text/event-stream", body: `event: progress\ndata: "checking"\n\nevent: done\ndata: ${JSON.stringify(done)}\n\n` }),
+  );
+  await page.getByRole("button", { name: "Generate" }).click();
+  const runPanel = page.getByRole("region", { name: "Generation run" });
+  await runPanel.getByText("failed").waitFor();
+  await page.locator(".react-flow__node-library").getByRole("img", { name: "1 error in the last run" }).waitFor();
+  assert.equal(await page.locator(".error-badge").count(), 1);
+  await runPanel.getByRole("button", { name: "HTTP client" }).click();
+  assert.equal(await page.getByLabel("Name", { exact: true }).inputValue(), "HTTP client");
+  await page.unroute("**/api/generate**");
+
   // Opt-in: Generate through the UI with the real agent (SCAFFOLD_AGENT_SMOKE=1).
   if (process.env.SCAFFOLD_AGENT_SMOKE) {
     await page.getByLabel("Board file path").fill(path);

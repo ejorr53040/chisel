@@ -4,7 +4,7 @@ import { canContain, newBlock, newId, type Block, type Edge, type Kind, type Lan
 import { serialize } from "../serialize";
 import { failedResult, type GenerateResult } from "../run";
 import { GENERATORS } from "../prompts";
-import { KIND_LABELS, fromNodes, isContainer, nodeTypes, parentsFirst, toFlowEdge, toNode, toNodes, type BlockNode, type LinkEdge } from "./nodes";
+import { BlockErrors, KIND_LABELS, fromNodes, isContainer, nodeTypes, parentsFirst, toFlowEdge, toNode, toNodes, type BlockNode, type LinkEdge } from "./nodes";
 import { EdgeInspector, Inspector } from "./Inspector";
 
 type Run = { running: boolean; progress: string[]; result?: GenerateResult };
@@ -26,6 +26,17 @@ export function App() {
   const board = useMemo(() => fromNodes(nodes, name, edges), [nodes, name, edges]);
   const arch = useMemo(() => serialize(board).arch, [board]);
   const selected = nodes.find((n) => n.selected);
+  const blockErrors = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const e of run?.result?.errors ?? []) if (e.blockId) counts.set(e.blockId, (counts.get(e.blockId) ?? 0) + 1);
+    return counts;
+  }, [run]);
+  const focusBlock = (id: string) => {
+    if (!nodes.some((n) => n.id === id)) return;
+    setNodes((ns) => ns.map((n) => ({ ...n, selected: n.id === id })));
+    setFlowEdges((es) => es.map((e) => ({ ...e, selected: false })));
+    rf.fitView({ nodes: [{ id }], duration: 300, maxZoom: 1.5, padding: 0.6 });
+  };
   const selectedEdge = selected ? undefined : flowEdges.find((e) => e.selected)?.data!.edge;
   const nameOf = (id: string) => nodes.find((n) => n.id === id)?.data.block.name ?? id;
 
@@ -178,6 +189,7 @@ export function App() {
       </aside>
 
       <main className="canvas">
+        <BlockErrors.Provider value={blockErrors}>
         <ReactFlow
           nodes={nodes}
           edges={flowEdges}
@@ -195,6 +207,7 @@ export function App() {
           <Background gap={24} />
           <Controls />
         </ReactFlow>
+        </BlockErrors.Provider>
       </main>
 
       <aside className="side">
@@ -218,13 +231,13 @@ export function App() {
           <div className="label">Architecture file</div>
           <pre aria-label="Architecture file preview">{arch}</pre>
         </section>
-        {run && <RunPanel run={run} />}
+        {run && <RunPanel run={run} onFocus={focusBlock} nameOf={nameOf} />}
       </aside>
     </div>
   );
 }
 
-function RunPanel({ run }: { run: Run }) {
+function RunPanel({ run, onFocus, nameOf }: { run: Run; onFocus: (id: string) => void; nameOf: (id: string) => string }) {
   const r = run.result;
   return (
     <section className="glass run" aria-label="Generation run">
@@ -238,7 +251,12 @@ function RunPanel({ run }: { run: Run }) {
         <ul className="run-errors" aria-label="Errors">
           {r.errors.map((e, i) => (
             <li key={i}>
-              {e.blockId && <span className="chip chip--err">@id {e.blockId}</span>} {e.message}
+              {e.blockId && (
+                <button className="btn btn--sm btn--link error-link" onClick={() => onFocus(e.blockId!)} title={`Show @id ${e.blockId} on the board`}>
+                  {nameOf(e.blockId)}
+                </button>
+              )}{" "}
+              {e.message}
             </li>
           ))}
         </ul>
