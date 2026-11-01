@@ -1,0 +1,106 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   ejorr — brand tokens
+   THE single source of truth. components.css, the artifact head block and
+   every other target derive from this file; none of them redefine a value.
+
+   Direction: clear glass pages (DeepSeek) + blueprint technical imagery.
+   Each section sits on a sky panel; content sits on frosted glass; pictures
+   are blueprint drawings on navy tiles.
+
+   Theme contract — all three viewer states are covered, in this order:
+     1. bare :root                      → complete LIGHT palette (the canonical look)
+     2. @media (prefers-color-scheme:dark) guarded :root:not([data-theme="light"])
+     3. :root[data-theme="dark"]        → so an explicit toggle wins both ways
+   Never give a colour its only definition inside 2 or 3.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  /* ── surfaces ─────────────────────────────────────────────────────────── */
+  --bg:            #F9F8F8;   /* page ground between sky panels             */
+  --surface:       #FFFFFF;   /* solid panels: tables, code, popovers       */
+  --inset:         #EEF1F7;   /* recessed: table heads, code blocks         */
+  --sky:           #DFE6FF;   /* top of a sky panel; fades down to --bg     */
+  --glass:         rgba(255, 255, 255, 0.42); /* frosted card fill          */
+  --glass-edge:    rgba(255, 255, 255, 0.8);  /* frosted card hairline      */
+  --cloud:         #FFFFFF;   /* brightest point of a cloud in the baked sky;
+                                 glass contrast is audited over it          */
+
+  /* ── lines ────────────────────────────────────────────────────────────── */
+  --border:        #D3D8E3;   /* hairline separator, decorative             */
+  --border-control:#7E879A;   /* form-control boundary, must clear 3:1      */
+
+  /* ── text ─────────────────────────────────────────────────────────────── */
+  --text:          #121C31;
+  --dim:           #5B6476;
+
+  /* ── accent: TWO TIERS of DeepSeek blue, not interchangeable ──────────── */
+  --fill:          #4D6BFE;   /* lines, fills, image strokes, focus ring.
+                                 4.08:1 on --bg: a UI colour, NEVER text.   */
+  --link:          #3352E8;   /* anything read as text: links, emphasis,
+                                 primary button labels. 5.64:1 on --bg.     */
+  --wash:          #EAEEFF;   /* tinted ground for chips and callouts       */
+
+  /* ── semantic (separate from the accent) ──────────────────────────────── */
+  --ok:            #2E7556;
+  --warn:          #86640F;
+  --err:           #BC3A33;
+  --on-err:        #FFFFFF;
+
+  /* ── imagery: blueprint tiles, same in both themes ────────────────────── */
+  --tile:          #0D1B3D;   /* solid ground behind every drawing          */
+  --tile-line:     #CFE0FF;   /* drawing lines and title-block text         */
+  --tile-hl:       #7D93FF;   /* the one highlighted part of a drawing      */
+
+  /* ── shape ────────────────────────────────────────────────────────────── */
+  --r-panel: 16px;            /* sky panels                                 */
+  --r-card:  10px;            /* glass cards, tables, inputs                */
+  --r-pill:  999px;           /* every button and chip                      */
+  --blur:    14px;            /* glass backdrop blur                        */
+
+  /* ── type ─────────────────────────────────────────────────────────────── */
+  --font-head: "Outfit", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-mono: "Fragment Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  --font-body: var(--font-mono);  /* everything that isn't a headline is mono.
+                                     Fragment Mono has ONE weight: never ask
+                                     for bold body text; emphasise with --link. */
+
+  --t-label: 11px;    /* uppercase eyebrows, 0.1em tracking */
+  --t-xs:    12px;    /* table cells, chips, metadata       */
+  --t-sm:    13px;    /* secondary body                     */
+  --t-base:  14.5px;  /* body (mono runs wide; 14.5 ≈ 16 sans) */
+  --t-md:    18px;
+  --t-lg:    24px;
+  --t-xl:    clamp(32px, 6vw, 48px);
+
+  /* ── spacing: 4px base ────────────────────────────────────────────────── */
+  --s1: 2px;  --s2: 4px;  --s3: 8px;  --s4: 12px; --s5: 16px;
+  --s6: 24px; --s7: 32px; --s8: 48px; --s9: 64px;
+
+  --measure: 70ch;     /* running-text width ceiling (mono) */
+  --gutter: 20px;      /* page side gutter, never below 16px */
+  --wrap: 1080px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0A0C14; --surface: #11141E; --inset: #171B28;
+    --sky: #1A2450; --cloud: #4A5378;
+    --glass: rgba(10, 12, 20, 0.45); --glass-edge: rgba(255, 255, 255, 0.2);
+    --border: #2C3242; --border-control: #6B748A;
+    --text: #EEF1F8; --dim: #A3A8B8;
+    --fill: #6F88FF; --link: #8EA2FF; --wash: #161D3D;
+    --ok: #5FBF95; --warn: #D9B45A; --err: #FF7B72; --on-err: #0A0C14;
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme="dark"] {
+  --bg: #0A0C14; --surface: #11141E; --inset: #171B28;
+  --sky: #1A2450; --cloud: #4A5378;
+    --glass: rgba(10, 12, 20, 0.45); --glass-edge: rgba(255, 255, 255, 0.2);
+  --border: #2C3242; --border-control: #6B748A;
+  --text: #EEF1F8; --dim: #A3A8B8;
+  --fill: #6F88FF; --link: #8EA2FF; --wash: #161D3D;
+  --ok: #5FBF95; --warn: #D9B45A; --err: #FF7B72; --on-err: #0A0C14;
+  color-scheme: dark;
+}

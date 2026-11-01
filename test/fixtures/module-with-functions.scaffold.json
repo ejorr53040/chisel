@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "name": "auth-demo",
+  "blocks": [
+    { "id": "f_logout", "kind": "function", "name": "logout", "parentId": "m_auth", "position": { "x": 20, "y": 120 },
+      "signature": "", "intent": "Ends the current session.", "steps": [] },
+    { "id": "m_auth", "kind": "module", "name": "auth", "position": { "x": 0, "y": 0 } },
+    { "id": "f_login", "kind": "function", "name": "login", "parentId": "m_auth", "position": { "x": 20, "y": 40 },
+      "signature": "(email, password) -> User", "intent": "Validates credentials and returns the user.", "steps": [] }
+  ],
+  "edges": []
+}

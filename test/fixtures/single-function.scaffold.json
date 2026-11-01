@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "name": "auth-demo",
+  "blocks": [
+    {
+      "id": "f_login",
+      "kind": "function",
+      "name": "login",
+      "position": { "x": 120, "y": 80 },
+      "signature": "(email, password) -> User",
+      "intent": "Validates credentials and returns the user, or raises AuthError.",
+      "steps": ["look up the user by email", "compare the password hash"]
+    }
+  ],
+  "edges": []
+}
