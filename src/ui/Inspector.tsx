@@ -3,14 +3,16 @@ import { EDGE_KINDS, LANGS, TRIGGERS, type Block, type Edge, type Lang, type Tar
 
 type Patch = Partial<Block>;
 
-function Text({ id, label, value, onChange, rows }: { id: string; label: string; value: string; onChange: (v: string) => void; rows?: number }) {
+// code: the value is code (a name, signature, type or package) and is set in the mono face; prose stays in Geist.
+function Text({ id, label, value, onChange, rows, code }: { id: string; label: string; value: string; onChange: (v: string) => void; rows?: number; code?: boolean }) {
+  const className = code ? "mono" : undefined;
   return (
     <div className="field">
       <label htmlFor={id}>{label}</label>
       {rows ? (
-        <textarea id={id} rows={rows} value={value} onChange={(e) => onChange(e.target.value)} />
+        <textarea id={id} className={className} rows={rows} value={value} onChange={(e) => onChange(e.target.value)} />
       ) : (
-        <input id={id} value={value} onChange={(e) => onChange(e.target.value)} />
+        <input id={id} className={className} value={value} onChange={(e) => onChange(e.target.value)} />
       )}
     </div>
   );
@@ -35,23 +37,24 @@ export function Inspector({ block, onChange }: { block: Block; onChange: (patch:
   const lines = (v: string) => v.split("\n");
   return (
     <div className="stack">
-      <Text id="f-name" label="Name" value={block.name} onChange={(name) => onChange({ name })} />
+      <Text id="f-name" label="Name" code value={block.name} onChange={(name) => onChange({ name })} />
       {block.kind === "function" && (
         <>
-          <Text id="f-sig" label="Signature" value={block.signature} onChange={(signature) => onChange({ signature })} />
+          <Text id="f-sig" label="Signature" code value={block.signature} onChange={(signature) => onChange({ signature })} />
           <Text id="f-intent" label="Intent" rows={2} value={block.intent} onChange={(intent) => onChange({ intent })} />
           <Text id="f-steps" label="Steps, one per line" rows={4} value={block.steps.join("\n")} onChange={(v) => onChange({ steps: lines(v) })} />
         </>
       )}
       {(block.kind === "field" || block.kind === "constant") && (
-        <Text id="f-type" label="Type" value={block.type} onChange={(type) => onChange({ type })} />
+        <Text id="f-type" label="Type" code value={block.type} onChange={(type) => onChange({ type })} />
       )}
-      {block.kind === "constant" && <Text id="f-value" label="Value" value={block.value} onChange={(value) => onChange({ value })} />}
+      {block.kind === "constant" && <Text id="f-value" label="Value" code value={block.value} onChange={(value) => onChange({ value })} />}
       {block.kind === "type" && (
         <>
           <Choice id="f-shape" label="Shape" value={block.shape} options={["struct", "enum"] as const} onChange={(shape) => onChange({ shape })} />
           <Text
             id="f-members"
+            code
             label={block.shape === "enum" ? "Variants, one per line" : "Fields (name: type), one per line"}
             rows={4}
             value={block.members.join("\n")}
@@ -64,6 +67,7 @@ export function Inspector({ block, onChange }: { block: Block; onChange: (patch:
           <Text
             key={lang}
             id={`f-pkg-${lang}`}
+            code
             label={`${LANG_LABELS[lang]} package (optional)`}
             value={block.overrides[lang] ?? ""}
             onChange={(pkg) => onChange({ overrides: { ...block.overrides, [lang]: pkg.trim() ? pkg : undefined } })}

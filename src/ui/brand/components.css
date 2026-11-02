@@ -15,15 +15,12 @@ body {
 
 /* layout */
 .stack { display: flex; flex-direction: column; gap: var(--s5); }
-.row   { display: flex; align-items: center; gap: var(--s4); flex-wrap: wrap; }
-.row > * { min-width: 0; }
 
 /* type: Geist for the interface, JetBrains Mono for anything that is code */
 h1, h2, h3 { font-weight: 600; letter-spacing: -0.02em; line-height: 1.15; margin: 0; text-wrap: balance; }
 p { margin: 0; }
 .label { font-size: var(--t-label); font-weight: 500; text-transform: uppercase; letter-spacing: 0.1em; color: var(--dim); }
 .meta  { font-size: var(--t-xs); color: var(--dim); }
-.dim   { color: var(--dim); }
 a { color: var(--accent-text); text-underline-offset: 3px; }
 code, kbd, pre { font-family: var(--font-mono); }
 code, kbd { font-size: 0.92em; background: var(--inset); padding: 1px 5px; border-radius: 4px; }
@@ -56,6 +53,8 @@ pre { background: var(--inset); padding: var(--s4); border-radius: var(--r-card)
   background: var(--inset); color: var(--dim); border: 1px solid var(--border);
 }
 .chip--accent { color: var(--accent-text); border-color: var(--accent); }
+.chip--ok     { color: var(--ok);    border-color: var(--ok); }
+.chip--err    { color: var(--fault); border-color: var(--fault); }
 
 /* wordmark: lowercase chisel in Geist 600, tight */
 .logo { display: inline-flex; align-items: center; gap: var(--s3); color: var(--text); text-decoration: none;
@@ -69,9 +68,5 @@ input, select, textarea {
   font: inherit; font-size: var(--t-sm); color: var(--text); background: var(--inset);
   border: 1px solid var(--border-control); border-radius: var(--r-card); padding: 7px 10px; min-width: 0;
 }
-textarea, .mono { font-family: var(--font-mono); }
+.mono { font-family: var(--font-mono); }
 input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
-
-/* status chips */
-.chip--ok    { color: var(--ok);    border-color: var(--ok); }
-.chip--err   { color: var(--fault); border-color: var(--fault); }

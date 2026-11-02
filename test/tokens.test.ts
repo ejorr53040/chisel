@@ -28,9 +28,9 @@ const ratio = (a: string, b: string) => {
 
 const TEXT: [string, string][] = [
   ["--text", "--bg"], ["--text", "--surface"], ["--text", "--inset"],
-  ["--dim", "--bg"], ["--dim", "--surface"],
-  ["--accent-text", "--bg"], ["--accent-text", "--surface"],
-  ["--fault", "--surface"], ["--warn", "--surface"], ["--ok", "--surface"],
+  ["--dim", "--bg"], ["--dim", "--surface"], ["--dim", "--inset"],
+  ["--accent-text", "--bg"], ["--accent-text", "--surface"], ["--accent-text", "--inset"],
+  ["--fault", "--surface"], ["--fault", "--inset"], ["--warn", "--bg"], ["--warn", "--surface"], ["--ok", "--surface"],
   ["--on-fault", "--fault"],
 ];
 const LINES: [string, string][] = [

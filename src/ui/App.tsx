@@ -300,7 +300,7 @@ export function App() {
         <button className="btn btn--sm" onClick={open}>
           Open
         </button>
-        <button className="btn btn--sm btn--primary" onClick={save}>
+        <button className="btn btn--sm" onClick={save}>
           Save
         </button>
         {!target && (
@@ -467,24 +467,28 @@ const SHORTCUTS: [string, string][] = [
 ];
 
 // An explicit choice wins over the system theme in both directions and is remembered in this browser.
+// index.html applies the stored choice before first paint, under the same key.
+const THEME_KEY = "chisel-theme";
+const lightQuery = matchMedia("(prefers-color-scheme: light)");
+
 function ThemeToggle() {
-  const [theme, setTheme] = useState<string | null>(() => {
-    try {
-      return localStorage.getItem("chisel-theme");
-    } catch {
-      return null;
-    }
-  });
+  const [theme, setTheme] = useState(() => document.documentElement.dataset.theme ?? null);
+  const [systemLight, setSystemLight] = useState(lightQuery.matches);
   useEffect(() => {
-    if (theme) document.documentElement.dataset.theme = theme;
-    else delete document.documentElement.dataset.theme;
+    const follow = () => setSystemLight(lightQuery.matches);
+    lightQuery.addEventListener("change", follow);
+    return () => lightQuery.removeEventListener("change", follow);
+  }, []);
+  useEffect(() => {
+    if (!theme) return;
+    document.documentElement.dataset.theme = theme;
     try {
-      if (theme) localStorage.setItem("chisel-theme", theme);
+      localStorage.setItem(THEME_KEY, theme);
     } catch {
       // storage blocked: the choice lasts for this page only
     }
   }, [theme]);
-  const dark = theme ? theme === "dark" : !matchMedia("(prefers-color-scheme: light)").matches;
+  const dark = theme ? theme === "dark" : !systemLight;
   return (
     <button className="btn btn--sm" aria-label={`Switch to ${dark ? "light" : "dark"} theme`} onClick={() => setTheme(dark ? "light" : "dark")}>
       {dark ? "☀" : "☾"}

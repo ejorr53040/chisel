@@ -54,7 +54,7 @@ export const toNodes = (board: Board) => parentsFirst(board.blocks).map(toNode);
 
 export type LinkEdge = FlowEdge<{ edge: Edge }>;
 
-// Each kind's colour is what it carries (provisional; the visual-semantics roadmap replaces it); dash, width and
+// Each kind's colour is what it carries (provisional until the visual-semantics grill, #39); dash, width and
 // glyph back that up for colour-blind reading. "other" is the free-form catch-all, drawn thin and dotted.
 export const EDGE_STYLE: Record<EdgeKind, { color: string; dash?: string; width?: number; glyph: string }> = {
   inherits: { color: "var(--slate)", width: 2.5, glyph: "▲" },

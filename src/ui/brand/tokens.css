@@ -20,7 +20,7 @@
   --accent:         #c86a45;
   --accent-text:    #e08a66;
 
-  /* context accents: what an edge or section carries (provisional, see the roadmap) */
+  /* context accents: what an edge or section carries (provisional until the visual-semantics grill, #39) */
   --data:           #4fa392;
   --control:        #d1a24a;
   --event:          #7593db;
@@ -48,7 +48,6 @@
 
   /* spacing: 4px base */
   --s1: 2px;  --s2: 4px;  --s3: 8px;  --s4: 12px; --s5: 16px;
-  --s6: 24px; --s7: 32px;
 
   color-scheme: dark;
 }
@@ -58,7 +57,7 @@
     --bg: #eceeec; --surface: #f7f8f7; --inset: #e1e4e2; --border: #cfd4d2; --border-control: #7c868b; --slate: #6b777d;
     --text: #24272a; --dim: #59636a;
     --accent: #b05a38; --accent-text: #9a4527;
-    --data: #2f7d6d; --control: #8a6416; --event: #3f62b8; --external: #7a55a3; --fault: #c0344a; --on-fault: #ffffff;
+    --data: #2f7d6d; --control: #8a6416; --event: #3f62b8; --external: #7a55a3; --fault: #ad2a3f; --on-fault: #ffffff;
     --warn: #86640f; --ok: #2e7556;
     color-scheme: light;
   }
@@ -68,7 +67,7 @@
   --bg: #eceeec; --surface: #f7f8f7; --inset: #e1e4e2; --border: #cfd4d2; --border-control: #7c868b; --slate: #6b777d;
   --text: #24272a; --dim: #59636a;
   --accent: #b05a38; --accent-text: #9a4527;
-  --data: #2f7d6d; --control: #8a6416; --event: #3f62b8; --external: #7a55a3; --fault: #c0344a; --on-fault: #ffffff;
+  --data: #2f7d6d; --control: #8a6416; --event: #3f62b8; --external: #7a55a3; --fault: #ad2a3f; --on-fault: #ffffff;
   --warn: #86640f; --ok: #2e7556;
   color-scheme: light;
 }
