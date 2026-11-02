@@ -54,18 +54,18 @@ export const toNodes = (board: Board) => parentsFirst(board.blocks).map(toNode);
 
 export type LinkEdge = FlowEdge<{ edge: Edge }>;
 
-// Each named kind has its own brand colour; dash, width and glyph back that up for colour-blind reading.
-// "other" is the free-form catch-all, drawn thin, dotted and grey with its own label.
+// Each kind's colour is what it carries (provisional until the visual-semantics grill, #39); dash, width and
+// glyph back that up for colour-blind reading. "other" is the free-form catch-all, drawn thin and dotted.
 export const EDGE_STYLE: Record<EdgeKind, { color: string; dash?: string; width?: number; glyph: string }> = {
-  inherits: { color: "var(--link)", width: 2.5, glyph: "▲" },
-  implements: { color: "var(--tile-hl)", dash: "6 4", width: 2.5, glyph: "△" },
-  imports: { color: "var(--text)", dash: "2 3", glyph: "⇣" },
-  uses: { color: "var(--dim)", dash: "6 4", glyph: "◇" },
-  calls: { color: "var(--fill)", glyph: "→" },
-  returns: { color: "var(--ok)", glyph: "↩" },
-  emits: { color: "var(--warn)", glyph: "↯" },
-  handles: { color: "var(--err)", dash: "6 4", glyph: "⚑" },
-  other: { color: "var(--dim)", dash: "1 5", width: 1, glyph: "…" },
+  inherits: { color: "var(--slate)", width: 2.5, glyph: "▲" },
+  implements: { color: "var(--slate)", dash: "6 4", width: 2.5, glyph: "△" },
+  imports: { color: "var(--external)", dash: "2 3", glyph: "⇣" },
+  uses: { color: "var(--data)", dash: "6 4", glyph: "◇" },
+  calls: { color: "var(--control)", glyph: "→" },
+  returns: { color: "var(--data)", glyph: "↩" },
+  emits: { color: "var(--event)", glyph: "↯" },
+  handles: { color: "var(--event)", dash: "6 4", glyph: "⚑" },
+  other: { color: "var(--slate)", dash: "1 5", width: 1, glyph: "…" },
 };
 
 export function toFlowEdge(edge: Edge, selected = false): LinkEdge {
@@ -125,7 +125,7 @@ function Title({ block }: { block: Block }) {
       )}
       {errors && (
         <span className="error-badge" role="img" aria-label={`${errors} error${errors > 1 ? "s" : ""} in the last run`}>
-          {errors}
+          ✕ {errors}
         </span>
       )}
     </div>
@@ -164,7 +164,7 @@ function Handles() {
 function ContainerNode({ data, selected }: NodeProps<BlockNode>) {
   return (
     <>
-      <NodeResizer isVisible={selected} minWidth={200} minHeight={120} color="var(--fill)" />
+      <NodeResizer isVisible={selected} minWidth={200} minHeight={120} color="var(--accent)" />
       <Handles />
       <div className={`block block--container block--${data.block.kind}${selected ? " is-selected" : ""}`}>
         <Title block={data.block} />

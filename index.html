@@ -8,10 +8,15 @@
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="manifest" href="/site.webmanifest" />
-    <meta name="theme-color" content="#F9F8F8" media="(prefers-color-scheme: light)" />
-    <meta name="theme-color" content="#0A0C14" media="(prefers-color-scheme: dark)" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@500&family=Fragment+Mono&display=swap" />
+    <meta name="theme-color" content="#eceeec" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#24272a" media="(prefers-color-scheme: dark)" />
+    <script>
+      // Apply a stored theme choice before first paint, so a reload never flashes the other theme (key shared with ThemeToggle).
+      try {
+        const t = localStorage.getItem("chisel-theme");
+        if (t === "light" || t === "dark") document.documentElement.dataset.theme = t;
+      } catch {}
+    </script>
   </head>
   <body>
     <div id="root"></div>
