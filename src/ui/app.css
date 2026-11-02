@@ -76,3 +76,9 @@ kbd { font-family: var(--font-mono); font-size: var(--t-xs); color: var(--dim); 
 .inputs legend { font-size: var(--t-xs); color: var(--dim); padding: 0; margin-bottom: var(--s2); }
 .input-row { display: grid; grid-template-columns: 1fr 1fr auto auto auto; gap: var(--s2); align-items: center; }
 .inputs > .btn { align-self: start; }
+
+.pin-badge { margin-left: 6px; color: var(--dim); font-size: var(--t-sm); vertical-align: middle; }
+
+/* Layout moves blocks; a short glide shows where they went. Never while dragging, never with reduced motion. */
+.react-flow__node:not(.dragging) { transition: transform 180ms ease-out; }
+@media (prefers-reduced-motion: reduce) { .react-flow__node { transition: none; } }

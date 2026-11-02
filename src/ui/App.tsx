@@ -6,6 +6,11 @@ import { failedResult, type GenerateResult } from "../run";
 import { GENERATORS } from "../prompts";
 import { BlockErrors, BlockWarnings, KIND_KEYS, KIND_LABELS, fromNodes, isContainer, nodeTypes, parentsFirst, toFlowEdge, toNode, toNodes, type BlockNode, type LinkEdge } from "./nodes";
 import { BoardInspector, EdgeInspector, Inspector } from "./Inspector";
+import ELK from "elkjs/lib/elk-api.js";
+import { layoutBoard, type Size } from "../layout";
+
+// Layout runs in a web worker so typing never waits on it.
+const elk = new ELK({ workerFactory: () => new Worker(new URL("elkjs/lib/elk-worker.min.js", import.meta.url)) });
 
 type Run = { running: boolean; progress: string[]; result?: GenerateResult };
 
@@ -95,7 +100,6 @@ export function App() {
     };
     const area = (n: BlockNode) => (n.measured?.width ?? 0) * (n.measured?.height ?? 0);
     const moves = new Map<string, { parentId?: string; position: { x: number; y: number } }>();
-    const grow = new Map<string, { width: number; height: number }>();
     for (const node of dragged.filter((n) => !ancestorDragged(n))) {
       const descendants = new Set<string>();
       const walk = (id: string) => nodes.filter((n) => n.parentId === id).forEach((n) => (descendants.add(n.id), walk(n.id)));
@@ -108,25 +112,49 @@ export function App() {
       const origin = target ? rf.getInternalNode(target.id)!.internals.positionAbsolute : { x: 0, y: 0 };
       const position = { x: abs.x - origin.x, y: abs.y - origin.y };
       moves.set(node.id, { parentId: target?.id, position });
-      if (target) {
-        const need = { width: position.x + (node.measured?.width ?? 0) + 24, height: position.y + (node.measured?.height ?? 0) + 24 };
-        const prev = grow.get(target.id) ?? { width: target.measured?.width ?? 0, height: target.measured?.height ?? 0 };
-        grow.set(target.id, { width: Math.max(prev.width, need.width), height: Math.max(prev.height, need.height) });
-      }
     }
+    // A dropped block is pinned: layout keeps it exactly there and grows its container around it.
     setNodes((ns) =>
       parentsFirst(
         ns.map((n) => {
           const move = moves.get(n.id);
-          const size = grow.get(n.id);
-          const moved = move ? { ...n, parentId: move.parentId, position: move.position } : n;
-          return size && (size.width > (n.measured?.width ?? 0) || size.height > (n.measured?.height ?? 0))
-            ? { ...moved, width: Math.round(size.width), height: Math.round(size.height) }
-            : moved;
+          return move ? { ...n, parentId: move.parentId, position: move.position, data: { block: { ...n.data.block, pinned: true } } } : n;
         }),
       ),
     );
   };
+
+  // Live layout: rerun when structure, pins or measured block sizes change; never for positions layout itself set.
+  const layoutKey = useMemo(
+    () =>
+      JSON.stringify([
+        nodes.map((n) => [n.id, n.parentId, n.data.block.pinned ? n.position : 0, isContainer(n.type!) ? 0 : [n.measured?.width, n.measured?.height]]),
+        edges.map((e) => [e.source, e.target]),
+      ]),
+    [nodes, edges],
+  );
+  const layoutRun = useRef(0);
+  useEffect(() => {
+    const run = ++layoutRun.current;
+    const timer = setTimeout(async () => {
+      const sizes: Record<string, Size> = {};
+      for (const n of nodes) if (!isContainer(n.type!) && n.measured?.width && n.measured.height) sizes[n.id] = { width: n.measured.width, height: n.measured.height };
+      const boxes = await layoutBoard(board, sizes, elk);
+      if (run !== layoutRun.current) return; // a newer layout is on its way
+      setNodes((ns) =>
+        ns.map((n) => {
+          const box = boxes[n.id];
+          if (!box || n.dragging) return n;
+          const position = n.data.block.pinned ? n.position : { x: Math.round(box.x), y: Math.round(box.y) };
+          return isContainer(n.type!) ? { ...n, position, width: Math.round(box.width), height: Math.round(box.height) } : { ...n, position };
+        }),
+      );
+    }, 120);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- layoutKey is the trigger; board and nodes are read at that moment
+  }, [layoutKey]);
+  const pinnedCount = nodes.filter((n) => n.data.block.pinned).length;
+  const unpinAll = () => setNodes((ns) => ns.map((n) => (n.data.block.pinned ? { ...n, data: { block: { ...n.data.block, pinned: undefined } } } : n)));
 
   // Replaces what's on the canvas with a board, selecting the given block ids.
   const show = (next: Board, select: string[] = []) => {
@@ -379,7 +407,7 @@ export function App() {
               onDelete={() => deleteEdge(selectedEdge.id)}
             />
           ) : (
-            <BoardInspector key={historyEpoch} target={target} onChange={setTarget} />
+            <BoardInspector key={historyEpoch} target={target} onChange={setTarget} pinned={pinnedCount} onUnpinAll={unpinAll} />
           )}
         </section>
         <section className="panel preview">

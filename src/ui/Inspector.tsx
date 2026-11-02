@@ -125,6 +125,11 @@ export function Inspector({ block, onChange }: { block: Block; onChange: (patch:
         </>
       )}
       <Text id="f-notes" label="Notes for the agent" rows={2} value={block.notes ?? ""} onChange={(notes) => onChange({ notes: notes || undefined })} />
+      {block.pinned && (
+        <button className="btn btn--sm" onClick={() => onChange({ pinned: undefined })}>
+          Unpin: let layout place it
+        </button>
+      )}
       <p className="meta">@id {block.id}</p>
     </div>
   );
@@ -159,13 +164,18 @@ export function EdgeInspector({
 }
 
 // Shown when nothing is selected: where Generate sends this board.
-export function BoardInspector({ target, onChange }: { target?: Target; onChange: (t?: Target) => void }) {
+export function BoardInspector({ target, onChange, pinned, onUnpinAll }: { target?: Target; onChange: (t?: Target) => void; pinned: number; onUnpinAll: () => void }) {
   // Raw text while typing; the parsed commands go to the board.
   const [commands, setCommands] = useState((target?.checks ?? []).map((c) => c.join(" ")).join("\n"));
   return (
     <div className="stack">
       <p className="meta">Select a block or edge to edit it. Drag from a block's side handle to another block to connect them.</p>
       <div className="label">Board</div>
+      {pinned > 0 && (
+        <button className="btn btn--sm" onClick={onUnpinAll}>
+          Unpin all ({pinned})
+        </button>
+      )}
       <Choice
         id="b-target"
         label="Generate into"

@@ -1,5 +1,5 @@
 import { createContext, useContext } from "react";
-import { Handle, MarkerType, NodeResizer, Position, type Edge as FlowEdge, type Node, type NodeProps } from "@xyflow/react";
+import { Handle, MarkerType, Position, type Edge as FlowEdge, type Node, type NodeProps } from "@xyflow/react";
 import { CONTAINS, LANGS, type Block, type Board, type Edge, type EdgeKind, type Kind } from "../board";
 import { blockLine, edgeVerb } from "../serialize";
 
@@ -118,6 +118,11 @@ function Title({ block }: { block: Block }) {
   return (
     <div className="block-title">
       <span className="kw">{keyword}</span> {rest.join(" ")}
+      {block.pinned && (
+        <span className="pin-badge" role="img" aria-label="Pinned: layout keeps it where you put it" title="Pinned: layout keeps it where you put it">
+          ⌖
+        </span>
+      )}
       {warnings.length > 0 && (
         <span className="warn-badge" role="img" aria-label={`Warning: ${warnings.join(" ")}`} title={warnings.join("\n")}>
           ⚠
@@ -164,7 +169,6 @@ function Handles() {
 function ContainerNode({ data, selected }: NodeProps<BlockNode>) {
   return (
     <>
-      <NodeResizer isVisible={selected} minWidth={200} minHeight={120} color="var(--accent)" />
       <Handles />
       <div className={`block block--container block--${data.block.kind}${selected ? " is-selected" : ""}`}>
         <Title block={data.block} />
