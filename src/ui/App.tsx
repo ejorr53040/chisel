@@ -4,7 +4,7 @@ import { canContain, duplicate, newBlock, newId, type Block, type Board, type Ed
 import { serialize } from "../serialize";
 import { failedResult, type GenerateResult } from "../run";
 import { GENERATORS } from "../prompts";
-import { BlockErrors, BlockWarnings, KIND_KEYS, KIND_LABELS, fromNodes, isContainer, nodeTypes, parentsFirst, toFlowEdge, toNode, toNodes, type BlockNode, type LinkEdge } from "./nodes";
+import { BlockErrors, BlockWarnings, Types, typeIndex, typeTexts, KIND_KEYS, KIND_LABELS, fromNodes, isContainer, nodeTypes, parentsFirst, toFlowEdge, toNode, toNodes, type BlockNode, type LinkEdge } from "./nodes";
 import { BoardInspector, EdgeInspector, Inspector } from "./Inspector";
 import ELK from "elkjs/lib/elk-api.js";
 import { PAD, layoutBoard, type Size } from "../layout";
@@ -59,6 +59,12 @@ export function App() {
     setFlowEdges((es) => es.map((e) => ({ ...e, selected: false })));
     rf.fitView({ nodes: [{ id }], duration: 300, maxZoom: 1.5, padding: 0.6 });
   };
+  // Type names in signatures link to their Type block; usage counts show on the Type block. Rebuilt only when a
+  // name or type text changes (not on every drag frame); select goes through a ref so it always sees current nodes.
+  const focusRef = useRef(focusBlock);
+  focusRef.current = focusBlock;
+  const typesKey = JSON.stringify(board.blocks.map((b) => [b.id, b.kind === "type" ? b.name : "", ...typeTexts(b)]));
+  const types = useMemo(() => typeIndex(board.blocks, (id) => focusRef.current(id)), [typesKey]); // eslint-disable-line react-hooks/exhaustive-deps -- typesKey covers what the index reads
   const selectedEdge = selected ? undefined : flowEdges.find((e) => e.selected)?.data!.edge;
   const nameOf = (id: string) => nodes.find((n) => n.id === id)?.data.block.name ?? id;
 
@@ -382,7 +388,9 @@ export function App() {
       <main className="canvas">
         <BlockErrors.Provider value={blockErrors}>
         <BlockWarnings.Provider value={blockWarnings}>
+        <Types.Provider value={types}>
         <ReactFlow
+          minZoom={0.3}
           nodes={nodes}
           edges={shownEdges}
           onNodesChange={onNodesChange}
@@ -399,6 +407,7 @@ export function App() {
           <Background gap={24} />
           <Controls />
         </ReactFlow>
+        </Types.Provider>
         </BlockWarnings.Provider>
         </BlockErrors.Provider>
       </main>

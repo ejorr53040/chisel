@@ -1,5 +1,5 @@
 import { createContext, useContext } from "react";
-import { Handle, MarkerType, Position, type Edge as FlowEdge, type Node, type NodeProps } from "@xyflow/react";
+import { Handle, MarkerType, Position, useStore, type Edge as FlowEdge, type Node, type NodeProps } from "@xyflow/react";
 import { LANGS, isContainer, type Block, type Board, type Edge, type EdgeKind, type Kind } from "../board";
 import { blockLine, edgeVerb } from "../serialize";
 
@@ -104,15 +104,81 @@ export const BlockErrors = createContext<ReadonlyMap<string, number>>(new Map())
 // Lossy-mapping warnings for the selected language, by block id.
 export const BlockWarnings = createContext<ReadonlyMap<string, string[]>>(new Map());
 
-// The architecture-file line, split into its keyword and the rest, plus the block's error badge.
-function Title({ block }: { block: Block }) {
-  const [keyword, ...rest] = blockLine(block).split(" ");
+// Type names on the board, so a type written in a signature can link to its Type block.
+export interface TypeIndex {
+  byName: ReadonlyMap<string, string>; // Type block name → id
+  usage: ReadonlyMap<string, number>; // Type block id → how many other blocks mention it
+  select: (id: string) => void;
+}
+export const Types = createContext<TypeIndex>({ byName: new Map(), usage: new Map(), select: () => {} });
+
+const IDENT = /[A-Za-z_$][\w$]*/g;
+
+// Every type text a block mentions: a function's input types, return and errors; a field's or constant's type;
+// a struct's member types.
+export function typeTexts(b: Block): string[] {
+  if (b.kind === "function") return [...b.inputs.map((p) => p.type), b.returns, ...b.errors];
+  if (b.kind === "field" || b.kind === "constant") return [b.type];
+  if (b.kind === "type" && b.shape === "struct") return b.members.map((m) => member(m).type);
+  return [];
+}
+const mentions = (b: Block) => new Set(typeTexts(b).flatMap((t) => t.match(IDENT) ?? []));
+// A struct member is "name: type"; an enum variant (or an untyped member) is just a name.
+const member = (m: string) => {
+  const [name, ...type] = m.split(":");
+  return { name: name.trim(), type: type.join(":").trim() };
+};
+const filled = (items: string[]) => items.filter((s) => s.trim());
+
+export function typeIndex(blocks: Block[], select: (id: string) => void): TypeIndex {
+  const byName = new Map(blocks.filter((b) => b.kind === "type").map((b) => [b.name.trim(), b.id]));
+  const usage = new Map<string, number>();
+  for (const b of blocks)
+    for (const name of mentions(b)) {
+      const id = byName.get(name);
+      if (id && id !== b.id) usage.set(id, (usage.get(id) ?? 0) + 1);
+    }
+  return { byName, usage, select };
+}
+
+// A type as written, with every name that is a Type block on the board as a link to it.
+function TypeText({ text }: { text: string }) {
+  const { byName, select } = useContext(Types);
+  const parts: React.ReactNode[] = [];
+  let at = 0;
+  for (const m of text.matchAll(IDENT)) {
+    const id = byName.get(m[0]);
+    if (!id) continue;
+    parts.push(text.slice(at, m.index));
+    parts.push(
+      <button key={m.index} className="type-link nodrag" onClick={(e) => (e.stopPropagation(), select(id))}>
+        {m[0]}
+      </button>,
+    );
+    at = m.index + m[0].length;
+  }
+  return (
+    <span className="ty">
+      {parts}
+      {text.slice(at)}
+    </span>
+  );
+}
+
+// How much a block shows at the current zoom: far = header only, mid = adds inputs/outputs/members,
+// near = adds types, type chips, intent and notes. Each level sets its own text size (app.css) so text stays
+// readable across the level's zoom range: the board drops detail as it zooms out instead of shrinking it.
+type Level = "far" | "mid" | "near";
+const levelOf = (zoom: number): Level => (zoom < 0.5 ? "far" : zoom < 0.9 ? "mid" : "near");
+const useLevel = () => useStore((s) => levelOf(s.transform[2]));
+
+// Pin, warning and error badges.
+function Badges({ block }: { block: Block }) {
   const errors = useContext(BlockErrors).get(block.id);
-  // Lossy-mapping and import warnings share the amber badge; red stays for generation errors.
+  // Lossy-mapping and import warnings share the amber badge; fault stays for generation errors.
   const warnings = [...(useContext(BlockWarnings).get(block.id) ?? []), ...(block.importWarnings ?? []).map((w) => w.message)];
   return (
-    <div className="block-title">
-      <span className="kw">{keyword}</span> {rest.join(" ")}
+    <>
       {block.pinned && (
         <span className="pin-badge" role="img" aria-label="Pinned: layout keeps it where you put it" title="Pinned: layout keeps it where you put it">
           ⌖
@@ -128,28 +194,136 @@ function Title({ block }: { block: Block }) {
           ✕ {errors}
         </span>
       )}
+    </>
+  );
+}
+
+// The architecture file's keyword for the block, shown as its kind tag.
+const keyword = (b: Block) => blockLine(b).split(" ")[0];
+
+function Header({ block, extra }: { block: Block; extra?: string }) {
+  return (
+    <div className="blk-head">
+      <span className="blk-kind">{keyword(block)}</span>
+      <span className="blk-name">{block.name}</span>
+      {extra && <span className="blk-extra">{extra}</span>}
+      <Badges block={block} />
     </div>
   );
 }
 
-function detail(b: Block): string | undefined {
-  switch (b.kind) {
-    case "function":
-      return b.intent;
+// rail: what the section carries, which colours its left rail (data, control or structure).
+function Section({ label, rail, children }: { label: string; rail: "data" | "control" | "slate"; children: React.ReactNode }) {
+  return (
+    <div className={`blk-sec rail-${rail}`} aria-label={label} role="group">
+      <div className="blk-sec-label">{label}</div>
+      {children}
+    </div>
+  );
+}
+
+function Detail({ block, level, method }: { block: Block; level: Level; method: boolean }) {
+  const types = useContext(Types);
+  if (level === "far") return null;
+  const near = level === "near";
+  switch (block.kind) {
+    case "function": {
+      const chips = near ? [...mentions(block)] : [];
+      return (
+        <>
+          {block.inputs.length > 0 && (
+            <Section label="Inputs" rail="data">
+              {block.inputs.map((p, i) => (
+                <div key={i} className="blk-row">
+                  <span>{p.name}</span>
+                  {near && p.type && <TypeText text={p.type} />}
+                </div>
+              ))}
+            </Section>
+          )}
+          {(block.returns.trim() || filled(block.errors).length > 0) && (
+            <Section label="Outputs" rail={method ? "control" : "data"}>
+              {block.returns.trim() && (
+                <div className="blk-row">
+                  <span>→</span>
+                  <TypeText text={block.returns} />
+                </div>
+              )}
+              {filled(block.errors).map((e, i) => (
+                <div key={i} className="blk-row blk-err">
+                  <span>!</span>
+                  <TypeText text={e} />
+                </div>
+              ))}
+            </Section>
+          )}
+          {near && block.intent.trim() && <div className="blk-intent">{block.intent}</div>}
+          {near && <Notes block={block} />}
+          {chips.length > 0 && (
+            <div className="blk-chips" aria-label="Types used">
+              {chips.map((n) => (
+                <TypeText key={n} text={n} />
+              ))}
+            </div>
+          )}
+        </>
+      );
+    }
+    case "field":
+    case "constant":
+      return (
+        <>
+          {(block.type.trim() || (block.kind === "constant" && block.value.trim())) && (
+            <Section label={block.kind === "field" ? "Type" : "Type and value"} rail="slate">
+              <div className="blk-row">
+                <TypeText text={block.type} />
+                {block.kind === "constant" && block.value.trim() && <span>= {block.value}</span>}
+              </div>
+            </Section>
+          )}
+          {near && <Notes block={block} />}
+        </>
+      );
+    case "type": {
+      const used = types.usage.get(block.id) ?? 0;
+      return (
+        <>
+          {filled(block.members).length > 0 && (
+            <Section label={block.shape === "enum" ? "Variants" : "Fields"} rail="slate">
+              {filled(block.members).map((m, i) => {
+                const { name, type } = member(m);
+                return (
+                  <div key={i} className="blk-row">
+                    <span>{name}</span>
+                    {near && type && <TypeText text={type} />}
+                  </div>
+                );
+              })}
+            </Section>
+          )}
+          <div className="blk-meta">used by {used}</div>
+          {near && <Notes block={block} />}
+        </>
+      );
+    }
     case "service":
-      return b.description;
+      return near ? <Prose text={block.description} block={block} /> : null;
     case "entry":
-      return b.detail;
-    case "type":
-      return b.members.filter(Boolean).join(", ");
+      return near ? <Prose text={block.detail} block={block} /> : null;
     case "library":
-      return LANGS.filter((lang) => b.overrides[lang]?.trim())
-        .map((lang) => `${lang}: ${b.overrides[lang]}`)
-        .join(" · ");
+      return near ? <Prose text={LANGS.filter((l) => block.overrides[l]?.trim()).map((l) => `${l}: ${block.overrides[l]}`).join(" · ")} block={block} /> : null;
     default:
-      return b.notes;
+      return near ? <Notes block={block} /> : null;
   }
 }
+
+const Notes = ({ block }: { block: Block }) => (block.notes?.trim() ? <div className="blk-notes">{block.notes}</div> : null);
+const Prose = ({ text, block }: { text: string; block: Block }) => (
+  <>
+    {text.trim() && <div className="blk-intent">{text}</div>}
+    <Notes block={block} />
+  </>
+);
 
 // Connection mode is loose, so an edge can start or end at either handle of any block.
 function Handles() {
@@ -161,25 +335,34 @@ function Handles() {
   );
 }
 
+// Functions inside a class or interface are its methods: their rail is the control colour.
+const METHOD_PARENTS = new Set<Kind>(["class", "interface"]);
+
 function ContainerNode({ data, selected }: NodeProps<BlockNode>) {
+  const level = useLevel();
   return (
     <>
       <Handles />
-      <div className={`block block--container block--${data.block.kind}${selected ? " is-selected" : ""}`}>
-        <Title block={data.block} />
+      <div className={`block block--container block--${data.block.kind} lvl-${level}${selected ? " is-selected" : ""}`}>
+        <Header block={data.block} />
       </div>
     </>
   );
 }
 
-function LeafNode({ data, selected }: NodeProps<BlockNode>) {
-  const text = detail(data.block);
+function LeafNode({ data, selected, parentId }: NodeProps<BlockNode>) {
+  const level = useLevel();
+  const parentKind = useStore((s) => (parentId ? s.nodeLookup.get(parentId)?.type : undefined));
+  const method = data.block.kind === "function" && METHOD_PARENTS.has(parentKind as Kind);
+  const extra = data.block.kind === "type" ? data.block.shape : data.block.kind === "entry" ? data.block.trigger : undefined;
   return (
-    <div className={`block block--leaf block--${data.block.kind}${selected ? " is-selected" : ""}`}>
+    <>
       <Handles />
-      <Title block={data.block} />
-      {text && <div className="block-intent">{text}</div>}
-    </div>
+      <div className={`block block--leaf block--${data.block.kind}${method ? " block--method" : ""} lvl-${level}${selected ? " is-selected" : ""}`}>
+        <Header block={data.block} extra={extra} />
+        <Detail block={data.block} level={level} method={method} />
+      </div>
+    </>
   );
 }
 

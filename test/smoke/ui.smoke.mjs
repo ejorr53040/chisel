@@ -315,6 +315,38 @@ try {
     await p5.close();
   }
 
+  // Blocks as program elements: sections, linked types, and detail that drops away as the board zooms out.
+  {
+    const p6 = await browser.newPage({ viewport: { width: 1400, height: 900 } });
+    p6.on("pageerror", (e) => errors.push(e.message));
+    await p6.goto(url);
+    await p6.getByRole("button", { name: "+ Type / Enum" }).click();
+    await p6.getByLabel("Name", { exact: true }).fill("Money");
+    await p6.getByRole("button", { name: "+ Function" }).click();
+    await p6.getByLabel("Name", { exact: true }).fill("total");
+    await p6.getByRole("button", { name: "+ Input" }).click();
+    await p6.getByLabel("Input 1 name").fill("tax");
+    await p6.getByLabel("Input 1 type").fill("Rate");
+    await p6.getByLabel("Returns").fill("Money");
+    await p6.getByLabel("Intent").fill("Sums the prices.");
+    await p6.waitForTimeout(600);
+    const total = p6.locator(".react-flow__node-function");
+    assert.ok(await total.getByRole("group", { name: "Inputs" }).isVisible(), "a function shows its inputs");
+    assert.ok(await total.getByRole("group", { name: "Outputs" }).isVisible(), "a function shows its outputs");
+    assert.ok(await total.getByText("Sums the prices.").isVisible(), "a function shows its intent up close");
+    assert.equal(await p6.locator(".react-flow__node-type").getByText("used by 1").count(), 1);
+    await total.getByRole("button", { name: "Money" }).first().click();
+    assert.equal(await p6.locator(".react-flow__node-type.selected").count(), 1, "a linked type selects its Type block");
+    for (let i = 0; i < 4; i++) await p6.getByRole("button", { name: /zoom out/i }).click();
+    await p6.waitForTimeout(800);
+    assert.equal(await total.getByRole("group", { name: "Inputs" }).count(), 0, "zoomed out, inputs are hidden");
+    const boxes = await p6.locator(".react-flow__node").evaluateAll((els) => els.map((e) => e.getBoundingClientRect().toJSON()));
+    for (const [i, a] of boxes.entries())
+      for (const b of boxes.slice(i + 1))
+        assert.ok(a.right <= b.left || b.right <= a.left || a.bottom <= b.top || b.bottom <= a.top, "zoomed-out blocks overlap");
+    await p6.close();
+  }
+
   // The theme toggle overrides the system theme, and the choice survives a reload.
   const bgOf = () => page.evaluate(() => getComputedStyle(document.body).backgroundColor);
   const before = await bgOf();

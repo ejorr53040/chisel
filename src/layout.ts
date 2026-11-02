@@ -13,7 +13,7 @@ export interface Box {
 export type Size = { width: number; height: number };
 
 const LEAF: Size = { width: 240, height: 72 }; // until the canvas has measured a block
-export const PAD = { top: 40, side: 16 }; // room for a container's title above its children
+export const PAD = { top: 56, side: 16 }; // room for a container's title above its children, even at far zoom's large type
 const GAP = 24;
 
 const isContainer = (b: Block) => holds(b.kind);
