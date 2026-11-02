@@ -33,6 +33,20 @@ describe("importBoard", () => {
     expect(importBoard(clash).blocks.map((b) => b.id)).toEqual(["m_a", "f_a_b", "f_a_b_2"]);
   });
 
+  it("splits a declared signature into inputs and a return, and flags one it cannot split", () => {
+    const fn = (signature: string) => ({ ...def("a.f", "function", "a"), signature, doc: "Does f." });
+    const facts: Facts = { name: "x", outline: { version: 1, unindexed: [], definitions: [def("a", "module"), fn("export function f({ a, b }: Opts): void {")] } };
+    expect(importBoard(facts).blocks[1]).toMatchObject({
+      inputs: [{ name: "{ a, b }: Opts", type: "" }],
+      returns: "void",
+      importWarnings: [{ kind: "loose-signature" }],
+    });
+    facts.outline.definitions[1] = fn("const f = (a: A, cb: (x: X) => Y): Z =>");
+    const clean = importBoard(facts).blocks[1];
+    expect(clean).toMatchObject({ inputs: [{ name: "a", type: "A" }, { name: "cb", type: "(x: X) => Y" }], returns: "Z" });
+    expect(clean.importWarnings).toBeUndefined();
+  });
+
   it("saves and loads an imported board with its sources, import warnings and unindexed files", () => {
     const path = join(mkdtempSync(join(tmpdir(), "chisel-import-")), "shop.chisel.json");
     saveBoard(path, importBoard(shop()));

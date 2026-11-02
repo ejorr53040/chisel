@@ -101,7 +101,7 @@ export function fromNodes(nodes: BlockNode[], name: string, edges: Edge[]): Boar
       };
     return block;
   });
-  return { version: 1, name, blocks, edges: edges.filter((e) => ids.has(e.source) && ids.has(e.target)) };
+  return { version: 2, name, blocks, edges: edges.filter((e) => ids.has(e.source) && ids.has(e.target)) };
 }
 
 // How many errors the last run tied to each block id.

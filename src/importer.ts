@@ -1,6 +1,6 @@
 // Builds a board from a repository's code, as read by tesselate (`tesselate call outline`; see tesselate#76).
 // Pure: the adapter that runs tesselate hands over the facts, so everything here is tested with recorded JSON.
-import type { Block, Board, Kind } from "./board";
+import { LOOSE_SIGNATURE_WARNING, parseSignature, type Block, type Board, type ImportWarning, type Kind } from "./board";
 
 export interface OutlineDef {
   id: string; // tesselate's qualified id, stable across runs
@@ -79,13 +79,20 @@ export function importBoard(facts: Facts): Board {
     const common = { id, name: node.name, parentId, position, source: node.source };
     if (node.kind === "function") {
       const doc = node.def?.doc?.trim();
+      const { inputs, returns, loose } = parseSignature(declaredSignature(node.def?.signature));
+      const warnings: ImportWarning[] = [
+        ...(doc ? [] : [{ kind: "no-intent" as const, message: "No doc comment: write an intent." }]),
+        ...(loose ? [LOOSE_SIGNATURE_WARNING] : []),
+      ];
       blocks.push({
         ...common,
         kind: "function",
-        signature: looseSignature(node.def?.signature),
+        inputs,
+        returns,
+        errors: [],
         intent: doc ?? "",
         steps: [],
-        ...(doc ? {} : { importWarnings: [{ kind: "no-intent", message: "No doc comment: write an intent." }] }),
+        ...(warnings.length ? { importWarnings: warnings } : {}),
       });
     } else blocks.push({ ...common, kind: "module" });
     return id;
@@ -111,7 +118,7 @@ export function importBoard(facts: Facts): Board {
   };
   pack(roots, undefined, 0, 0);
 
-  return { version: 1, name: facts.name, blocks, edges: [], ...(unindexed.length ? { unindexed: [...unindexed].sort(byCodePoint) } : {}) };
+  return { version: 2, name: facts.name, blocks, edges: [], ...(unindexed.length ? { unindexed: [...unindexed].sort(byCodePoint) } : {}) };
 }
 
 const at = (d: OutlineDef) => ({ id: d.id, path: d.path, line: d.line });
@@ -120,8 +127,8 @@ const at = (d: OutlineDef) => ({ id: d.id, path: d.path, line: d.line });
 const sorted = (items: Node[]) =>
   [...items].sort((a, b) => byCodePoint(a.source.path, b.source.path) || a.source.line - b.source.line || byCodePoint(a.source.id, b.source.id));
 
-// "export function f(a: A): B {" → "(a: A): B", the loose signature the board shows after the name.
-function looseSignature(declared: string | undefined): string {
+// "export function f(a: A): B {" → "(a: A): B", the part of a declaration that parseSignature reads.
+function declaredSignature(declared: string | undefined): string {
   const open = declared?.indexOf("(") ?? -1;
   return open < 0 ? "()" : declared!.slice(open).replace(/\s*(\{|=>)\s*$/, "").trim();
 }

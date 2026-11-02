@@ -29,9 +29,9 @@ module <name>  @id <id>
 - **Top-level blocks are separated by one blank line**; nested blocks are not. An empty board is just the two header lines.
 - **Every value is one line.** Newlines (and the whitespace around them) in names, intents and steps fold to a single space.
 - Block properties (`intent:`, `steps:`) sit one level under their block line. Blank steps are omitted.
-- **Signatures are loose but always parenthesised:** empty → `()`; `a, b -> C` → `(a, b) -> C`; text already starting with `(` is kept as written.
+- **Signatures are built from the function's structured fields** (amended 2026-11-02, #37): `(<input>, ...)` where each input is `name` or `name: type`, then ` -> <returns>` when there is a return. No inputs → `()`; inputs with an empty name are skipped. Types and the return stay free text in any language's style.
 - **Block lines by kind:** `module N`, `class N`, `interface N`, `fn N(sig)`, `field N[: type]`, `const N[: type][ = value]`, `type N struct|enum`, `library <capability>`, `service N`, `entry main|http|cli N`.
-- **Property lines:** `notes:` (any block, first), `intent:` + `steps:` (fn), `members:` (type), one `<lang>: <package>` line per override in `python, rust, cpp` order (library), `description:` (service), `detail:` (entry). Empty properties are omitted.
+- **Property lines:** `notes:` (any block, first), `intent:` + `steps:` + `errors:` (fn; `errors:` lists the error types, one per `- ` line, blank ones omitted), `members:` (type), one `<lang>: <package>` line per override in `python, rust, cpp` order (library), `description:` (service), `detail:` (entry). Empty properties are omitted.
 - **Edges are lines under their source block**, after its properties and before its children: `-> <kind> <target name> (@id <target id>)  @edge <edge id>`. An `other` edge with a label shows the label in double quotes in place of the kind; double quotes inside the label become single quotes. Only `other` edges carry labels. Order: kind (`inherits, implements, imports, uses, calls, returns, emits, handles, other`), then the rendered line.
 - **Default module:** non-module blocks with no parent are written inside `module main  @id _main`, which sorts with the other top-level modules. If the board has its own top-level module named `main`, they go into that one instead (the smallest id, if there are several). The id `_main` is reserved; board files using it are rejected.
 - **Containment rules:** a module may hold any block; a class holds const, type, field and fn; an interface holds fn; nothing else holds blocks. The UI only nests where these allow, and board files that break them are rejected.
@@ -44,4 +44,5 @@ Later tickets add block kinds, edges and notes by extending this grammar: new ki
 
 - Moving blocks around never produces a diff; renaming does.
 - The golden files in `test/fixtures/` are the executable form of this ADR.
-- Signatures are free text, so the grammar is not machine-parseable below the block line. That is intentional: the reader is an LLM, and the board file is the machine format.
+- Types inside signatures are free text, so the grammar is not machine-parseable below the block line. That is intentional: the reader is an LLM, and the board file is the machine format.
+- Board files before version 2 stored the signature as loose text; loading one parses it into inputs and a return (see `parseSignature`), keeping a parameter list it can't split as one input with a warning.

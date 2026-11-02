@@ -1,0 +1,10 @@
+{
+  "version": 2,
+  "name": "shop",
+  "blocks": [
+    { "id": "m_cart", "kind": "module", "name": "cart", "position": { "x": 0, "y": 0 } },
+    { "id": "f_total", "kind": "function", "name": "total", "parentId": "m_cart", "position": { "x": 0, "y": 0 }, "inputs": [{ "name": "items", "type": "List<Item>" }, { "name": "tax", "type": "Rate" }, { "name": "round", "type": "" }], "returns": "Money", "errors": ["PriceError", "EmptyCart"], "intent": "Sums item prices and applies the tax rate.", "steps": [] },
+    { "id": "f_clear", "kind": "function", "name": "clear", "parentId": "m_cart", "position": { "x": 0, "y": 0 }, "inputs": [], "returns": "", "errors": [], "intent": "Empties the cart.", "steps": [] }
+  ],
+  "edges": []
+}

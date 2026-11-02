@@ -1,4 +1,4 @@
-import { BLOCK_KINDS, EDGE_KINDS, LANGS, type Block, type Board, type Edge, type Lang } from "./board";
+import { BLOCK_KINDS, EDGE_KINDS, LANGS, type Block, type Board, type Edge, type FunctionBlock, type Lang } from "./board";
 
 export interface Warning {
   blockId?: string;
@@ -12,12 +12,10 @@ const byCodePoint = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 // The file is line-oriented, so user text never gets to start a new line.
 const oneLine = (text: string) => text.replace(/\s*\n\s*/g, " ").trim();
 
-// Loose signatures are free text; make sure the parameter list is parenthesised.
-export function signatureText(signature: string): string {
-  const sig = oneLine(signature);
-  if (sig.startsWith("(")) return sig;
-  const [params, ...ret] = sig.split("->");
-  return `(${params.trim()})` + (ret.length ? ` -> ${ret.join("->").trim()}` : "");
+// "(a: A, b) -> R": each input as name or name: type, then the return when there is one.
+export function signatureText(fn: FunctionBlock): string {
+  const params = fn.inputs.filter((p) => p.name.trim()).map((p) => oneLine(p.name) + (p.type.trim() ? `: ${oneLine(p.type)}` : ""));
+  return `(${params.join(", ")})` + (fn.returns.trim() ? ` -> ${oneLine(fn.returns)}` : "");
 }
 
 // What an edge says it is: its kind, or for a labelled "other" edge the label (double quotes become single,
@@ -32,7 +30,7 @@ export function blockLine(b: Block): string {
   const name = oneLine(b.name);
   switch (b.kind) {
     case "function":
-      return `fn ${name}${signatureText(b.signature)}`;
+      return `fn ${name}${signatureText(b)}`;
     case "field":
       return `field ${name}${b.type.trim() ? `: ${oneLine(b.type)}` : ""}`;
     case "constant":
@@ -55,7 +53,7 @@ function props(b: Block): [string, string | string[]][] {
     if (kept.length) out.push([key, kept]);
   };
   add("notes", b.notes);
-  if (b.kind === "function") add("intent", b.intent), list("steps", b.steps);
+  if (b.kind === "function") add("intent", b.intent), list("steps", b.steps), list("errors", b.errors);
   if (b.kind === "type") list("members", b.members);
   if (b.kind === "library") for (const lang of LANGS) add(lang, b.overrides[lang]);
   if (b.kind === "service") add("description", b.description);

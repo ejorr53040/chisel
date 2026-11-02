@@ -11,6 +11,7 @@ interface BlockBase {
   notes?: string;
   source?: Source; // only on imported blocks
   importWarnings?: ImportWarning[];
+  pinned?: boolean; // the user placed it; live layout (#41) keeps it where it is
 }
 
 // Where an imported block's code lives: tesselate's qualified id, its file, and its line (0 for a folder).
@@ -20,8 +21,8 @@ export interface Source {
   line: number;
 }
 
-// Something import could not be sure of, shown as an amber badge until the next import replaces it.
-export const IMPORT_WARNING_KINDS = ["no-intent"] as const;
+// Something import or migration could not be sure of, shown as an amber badge until the next import replaces it.
+export const IMPORT_WARNING_KINDS = ["no-intent", "loose-signature"] as const;
 export interface ImportWarning {
   kind: (typeof IMPORT_WARNING_KINDS)[number];
   message: string;
@@ -31,12 +32,102 @@ export interface ModuleBlock extends BlockBase {
   kind: "module";
 }
 
+// A function input; the type is free text in any language's style, empty when unknown.
+export interface Param {
+  name: string;
+  type: string;
+}
+
 export interface FunctionBlock extends BlockBase {
   kind: "function";
-  signature: string; // loose, e.g. "(email, password) -> User"
+  inputs: Param[];
+  returns: string; // empty for none
+  errors: string[]; // error types it can fail with
   intent: string;
   steps: string[];
 }
+
+// Brackets that nest in a signature. The ">" of "->" and "=>" never closes one, and nothing inside a
+// double-quoted or backtick string counts (single quotes are left alone: Rust lifetimes use them).
+const OPEN = "([{<";
+const CLOSE = ")]}>";
+const QUOTES = '"`';
+
+// The bracket depth outside each character (-1 inside a string), and whether every bracket and string closes.
+function depths(text: string): { at: number[]; balanced: boolean } {
+  const at: number[] = [];
+  let depth = 0;
+  let quote = "";
+  let balanced = true;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (quote) {
+      at.push(-1);
+      if (ch === quote && text[i - 1] !== "\\") quote = "";
+    } else if (QUOTES.includes(ch)) {
+      at.push(-1);
+      quote = ch;
+    } else if (text.startsWith("->", i) || text.startsWith("=>", i)) {
+      at.push(depth, depth);
+      i++;
+    } else if (OPEN.includes(ch)) at.push(depth++);
+    else if (CLOSE.includes(ch)) {
+      if (depth === 0) balanced = false;
+      depth = Math.max(0, depth - 1);
+      at.push(depth);
+    } else at.push(depth);
+  }
+  return { at, balanced: balanced && depth === 0 && !quote };
+}
+
+// Splits text on sep where no bracket or string is open.
+function splitTop(text: string, sep: string): string[] {
+  const { at } = depths(text);
+  const parts: string[] = [];
+  let start = 0;
+  for (let i = 0; i < text.length; i++) {
+    if (at[i] !== 0 || !text.startsWith(sep, i)) continue;
+    parts.push(text.slice(start, i));
+    start = i + sep.length;
+    i += sep.length - 1;
+  }
+  return [...parts, text.slice(start)];
+}
+
+// A parameter name, with the prefixes languages put on one: ...rest, *args, &self, &mut self, mut x, optional?.
+const PARAM_NAME = /^(\.\.\.|\*{1,2}|&(mut\s+)?)?(mut\s+)?[A-Za-z_$][\w$]*\??$/;
+
+// A loose signature ("(a: A, b) -> R", "a, b -> R", TypeScript's "(a: A): R" and "(a: A) => R") as structured
+// inputs and a return. A parameter list that doesn't split cleanly into name or name: type, or doesn't close,
+// is kept whole as one input, and loose is set.
+export function parseSignature(text: string): { inputs: Param[]; returns: string; loose: boolean } {
+  const sig = text.trim();
+  let params: string;
+  let rest: string;
+  if (sig.startsWith("(")) {
+    const end = depths(sig).at.findIndex((d, i) => i > 0 && d === 0 && sig[i] === ")");
+    if (end < 0) return { inputs: [{ name: sig.slice(1).trim(), type: "" }], returns: "", loose: true };
+    params = sig.slice(1, end);
+    rest = sig.slice(end + 1).trim().replace(/^(->|=>|:)/, "");
+  } else {
+    const [head, ...tail] = splitTop(sig, "->");
+    params = head;
+    rest = tail.join("->");
+  }
+  const returns = rest.trim();
+  if (!params.trim()) return { inputs: [], returns, loose: false };
+  const inputs = splitTop(params, ",").map((p) => {
+    const [name, ...type] = splitTop(p.trim(), ":");
+    return { name: name.trim(), type: type.join(":").trim() };
+  });
+  if (depths(params).balanced && inputs.every((p) => PARAM_NAME.test(p.name))) return { inputs, returns, loose: false };
+  return { inputs: [{ name: params.trim(), type: "" }], returns, loose: true };
+}
+
+export const LOOSE_SIGNATURE_WARNING = {
+  kind: "loose-signature",
+  message: "The parameter list didn't split into names and types: check the inputs.",
+} as const satisfies ImportWarning;
 
 export interface ClassBlock extends BlockBase {
   kind: "class";
@@ -122,7 +213,7 @@ export function newBlock(kind: Kind, position: { x: number; y: number }): Block 
   const base = { id: newId(kind[0]), name: kind === "module" ? "module" : `new ${kind}`, position };
   switch (kind) {
     case "function":
-      return { ...base, kind, name: "function", signature: "()", intent: "", steps: [] };
+      return { ...base, kind, name: "function", inputs: [], returns: "", errors: [], intent: "", steps: [] };
     case "field":
       return { ...base, kind, name: "field", type: "" };
     case "constant":
@@ -164,7 +255,7 @@ export interface Target {
 }
 
 export interface Board {
-  version: 1;
+  version: 2;
   name: string;
   blocks: Block[];
   edges: Edge[];
