@@ -116,13 +116,19 @@ const IDENT = /[A-Za-z_$][\w$]*/g;
 
 // Every type text a block mentions: a function's input types, return and errors; a field's or constant's type;
 // a struct's member types.
-function typeTexts(b: Block): string[] {
+export function typeTexts(b: Block): string[] {
   if (b.kind === "function") return [...b.inputs.map((p) => p.type), b.returns, ...b.errors];
   if (b.kind === "field" || b.kind === "constant") return [b.type];
-  if (b.kind === "type" && b.shape === "struct") return b.members.map((m) => m.split(":").slice(1).join(":"));
+  if (b.kind === "type" && b.shape === "struct") return b.members.map((m) => member(m).type);
   return [];
 }
 const mentions = (b: Block) => new Set(typeTexts(b).flatMap((t) => t.match(IDENT) ?? []));
+// A struct member is "name: type"; an enum variant (or an untyped member) is just a name.
+const member = (m: string) => {
+  const [name, ...type] = m.split(":");
+  return { name: name.trim(), type: type.join(":").trim() };
+};
+const filled = (items: string[]) => items.filter((s) => s.trim());
 
 export function typeIndex(blocks: Block[], select: (id: string) => void): TypeIndex {
   const byName = new Map(blocks.filter((b) => b.kind === "type").map((b) => [b.name.trim(), b.id]));
@@ -160,8 +166,9 @@ function TypeText({ text }: { text: string }) {
 }
 
 // How much a block shows at the current zoom: far = header only, mid = adds inputs/outputs/members,
-// near = adds types, type chips and intent. Detail is dropped as the board zooms out, never shrunk.
-export type Level = "far" | "mid" | "near";
+// near = adds types, type chips, intent and notes. Each level sets its own text size (app.css) so text stays
+// readable across the level's zoom range: the board drops detail as it zooms out instead of shrinking it.
+type Level = "far" | "mid" | "near";
 const levelOf = (zoom: number): Level => (zoom < 0.5 ? "far" : zoom < 0.9 ? "mid" : "near");
 const useLevel = () => useStore((s) => levelOf(s.transform[2]));
 
@@ -205,9 +212,10 @@ function Header({ block, extra }: { block: Block; extra?: string }) {
   );
 }
 
-function Section({ label, rail, children }: { label: string; rail: string; children: React.ReactNode }) {
+// rail: what the section carries, which colours its left rail (data, control or structure).
+function Section({ label, rail, children }: { label: string; rail: "data" | "control" | "slate"; children: React.ReactNode }) {
   return (
-    <div className="blk-sec" style={{ borderLeftColor: `var(${rail})` }} aria-label={label} role="group">
+    <div className={`blk-sec rail-${rail}`} aria-label={label} role="group">
       <div className="blk-sec-label">{label}</div>
       {children}
     </div>
@@ -220,11 +228,11 @@ function Detail({ block, level, method }: { block: Block; level: Level; method: 
   const near = level === "near";
   switch (block.kind) {
     case "function": {
-      const chips = near ? [...mentions(block)].filter((n) => types.byName.has(n)) : [];
+      const chips = near ? [...mentions(block)] : [];
       return (
         <>
           {block.inputs.length > 0 && (
-            <Section label="Inputs" rail="--data">
+            <Section label="Inputs" rail="data">
               {block.inputs.map((p, i) => (
                 <div key={i} className="blk-row">
                   <span>{p.name}</span>
@@ -233,15 +241,15 @@ function Detail({ block, level, method }: { block: Block; level: Level; method: 
               ))}
             </Section>
           )}
-          {(block.returns.trim() || block.errors.some((e) => e.trim())) && (
-            <Section label={method ? "Returns (method)" : "Outputs"} rail={method ? "--control" : "--data"}>
+          {(block.returns.trim() || filled(block.errors).length > 0) && (
+            <Section label="Outputs" rail={method ? "control" : "data"}>
               {block.returns.trim() && (
                 <div className="blk-row">
                   <span>→</span>
                   <TypeText text={block.returns} />
                 </div>
               )}
-              {block.errors.filter((e) => e.trim()).map((e, i) => (
+              {filled(block.errors).map((e, i) => (
                 <div key={i} className="blk-row blk-err">
                   <span>!</span>
                   <TypeText text={e} />
@@ -250,6 +258,7 @@ function Detail({ block, level, method }: { block: Block; level: Level; method: 
             </Section>
           )}
           {near && block.intent.trim() && <div className="blk-intent">{block.intent}</div>}
+          {near && <Notes block={block} />}
           {chips.length > 0 && (
             <div className="blk-chips" aria-label="Types used">
               {chips.map((n) => (
@@ -262,41 +271,59 @@ function Detail({ block, level, method }: { block: Block; level: Level; method: 
     }
     case "field":
     case "constant":
-      return block.type.trim() || (block.kind === "constant" && block.value.trim()) ? (
-        <Section label={block.kind === "field" ? "Field" : "Constant"} rail="--slate">
-          <div className="blk-row">
-            <TypeText text={block.type} />
-            {block.kind === "constant" && block.value.trim() && <span>= {block.value}</span>}
-          </div>
-        </Section>
-      ) : null;
+      return (
+        <>
+          {(block.type.trim() || (block.kind === "constant" && block.value.trim())) && (
+            <Section label={block.kind === "field" ? "Type" : "Type and value"} rail="slate">
+              <div className="blk-row">
+                <TypeText text={block.type} />
+                {block.kind === "constant" && block.value.trim() && <span>= {block.value}</span>}
+              </div>
+            </Section>
+          )}
+          {near && <Notes block={block} />}
+        </>
+      );
     case "type": {
       const used = types.usage.get(block.id) ?? 0;
       return (
         <>
-          {block.members.some((m) => m.trim()) && (
-            <Section label={block.shape === "enum" ? "Variants" : "Fields"} rail="--slate">
-              {block.members.filter((m) => m.trim()).map((m, i) => {
-                const [name, ...type] = m.split(":");
+          {filled(block.members).length > 0 && (
+            <Section label={block.shape === "enum" ? "Variants" : "Fields"} rail="slate">
+              {filled(block.members).map((m, i) => {
+                const { name, type } = member(m);
                 return (
                   <div key={i} className="blk-row">
-                    <span>{name.trim()}</span>
-                    {near && type.length > 0 && <TypeText text={type.join(":").trim()} />}
+                    <span>{name}</span>
+                    {near && type && <TypeText text={type} />}
                   </div>
                 );
               })}
             </Section>
           )}
           <div className="blk-meta">used by {used}</div>
+          {near && <Notes block={block} />}
         </>
       );
     }
-    default: {
-      const text = block.kind === "service" ? block.description : block.kind === "entry" ? block.detail : block.kind === "library" ? LANGS.filter((l) => block.overrides[l]?.trim()).map((l) => `${l}: ${block.overrides[l]}`).join(" · ") : "";
-      return near && text?.trim() ? <div className="blk-intent">{text}</div> : null;
-    }
+    case "service":
+      return near ? <Prose text={block.description} block={block} /> : null;
+    case "entry":
+      return near ? <Prose text={block.detail} block={block} /> : null;
+    case "library":
+      return near ? <Prose text={LANGS.filter((l) => block.overrides[l]?.trim()).map((l) => `${l}: ${block.overrides[l]}`).join(" · ")} block={block} /> : null;
+    default:
+      return near ? <Notes block={block} /> : null;
   }
 }
+
+const Notes = ({ block }: { block: Block }) => (block.notes?.trim() ? <div className="blk-notes">{block.notes}</div> : null);
+const Prose = ({ text, block }: { text: string; block: Block }) => (
+  <>
+    {text.trim() && <div className="blk-intent">{text}</div>}
+    <Notes block={block} />
+  </>
+);
 
 // Connection mode is loose, so an edge can start or end at either handle of any block.
 function Handles() {
@@ -312,17 +339,18 @@ function Handles() {
 const METHOD_PARENTS = new Set<Kind>(["class", "interface"]);
 
 function ContainerNode({ data, selected }: NodeProps<BlockNode>) {
+  const level = useLevel();
   return (
     <>
       <Handles />
-      <div className={`block block--container block--${data.block.kind} lvl-${useLevel()}${selected ? " is-selected" : ""}`}>
+      <div className={`block block--container block--${data.block.kind} lvl-${level}${selected ? " is-selected" : ""}`}>
         <Header block={data.block} />
       </div>
     </>
   );
 }
 
-function LeafNode({ id, data, selected, parentId }: NodeProps<BlockNode>) {
+function LeafNode({ data, selected, parentId }: NodeProps<BlockNode>) {
   const level = useLevel();
   const parentKind = useStore((s) => (parentId ? s.nodeLookup.get(parentId)?.type : undefined));
   const method = data.block.kind === "function" && METHOD_PARENTS.has(parentKind as Kind);
@@ -330,7 +358,7 @@ function LeafNode({ id, data, selected, parentId }: NodeProps<BlockNode>) {
   return (
     <>
       <Handles />
-      <div data-id={id} className={`block block--leaf block--${data.block.kind}${method ? " block--method" : ""} lvl-${level}${selected ? " is-selected" : ""}`}>
+      <div className={`block block--leaf block--${data.block.kind}${method ? " block--method" : ""} lvl-${level}${selected ? " is-selected" : ""}`}>
         <Header block={data.block} extra={extra} />
         <Detail block={data.block} level={level} method={method} />
       </div>

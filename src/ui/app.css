@@ -21,31 +21,45 @@ html, body, #root { height: 100%; margin: 0; }
 /* Blocks as program elements (style C): a header with its top-right corner chiselled off, sections marked by
    coloured left rails, types as mono text that links to its Type block. --rail is the block's role colour. */
 .block { font-size: var(--t-xs); color: var(--text); box-sizing: border-box; --cut: 12px; }
+/* The edge is drawn by drop-shadows on the node wrapper, which follow the chiselled clip (a border can't). */
 .block--leaf {
   --rail: var(--slate); min-width: 200px; max-width: 300px; background: var(--surface);
-  border: 1px solid var(--border-control); border-left: 3px solid var(--rail);
+  border-left: 3px solid var(--rail);
   clip-path: polygon(0 0, calc(100% - var(--cut)) 0, 100% var(--cut), 100% 100%, 0 100%);
 }
+.react-flow__node:has(> .block--leaf) { --edge: var(--border-control); --w: 1px;
+  filter: drop-shadow(var(--w) 0 0 var(--edge)) drop-shadow(calc(-1 * var(--w)) 0 0 var(--edge)) drop-shadow(0 var(--w) 0 var(--edge)) drop-shadow(0 calc(-1 * var(--w)) 0 var(--edge)); }
+.react-flow__node.selected:has(> .block--leaf) { --edge: var(--accent); --w: 2px; }
 .block--function { --rail: var(--data); }
 .block--method { --rail: var(--control); }
 .block--type { --rail: var(--data); }
-.block--library, .block--service { --rail: var(--external); border-style: dashed; border-left-style: solid; }
-.block--entry { --rail: var(--event); }
+.block--library, .block--service { --rail: var(--external); }
+.block--library { clip-path: none; border-radius: 12px; outline: 1px dashed var(--external); outline-offset: -4px; }
 .block--service { clip-path: polygon(0 0, calc(100% - var(--cut)) 0, 100% 50%, calc(100% - var(--cut)) 100%, 0 100%); }
+.block--entry { --rail: var(--event); padding-left: var(--cut); border-left: 0;
+  clip-path: polygon(0 0, calc(100% - var(--cut)) 0, 100% var(--cut), 100% 100%, 0 100%, var(--cut) 50%); }
 .block--container {
   width: 100%; height: 100%; padding: 0; background: color-mix(in srgb, var(--slate) 8%, transparent);
   border: 1px dashed var(--slate); border-radius: var(--r-card);
 }
 .block--class, .block--interface { background: color-mix(in srgb, var(--surface) 60%, transparent); border-style: solid; }
-.block.is-selected { box-shadow: inset 0 0 0 2px var(--accent); }
+.block--container.is-selected { box-shadow: inset 0 0 0 2px var(--accent); }
 
 .blk-head { display: flex; align-items: baseline; gap: 6px; padding: 6px 18px 6px 8px; font-family: var(--font-mono); }
 .blk-kind { font-size: 10px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.06em; color: var(--dim); }
 .blk-name { font-size: var(--t-sm); font-weight: 500; overflow-wrap: anywhere; }
 .blk-extra { color: var(--dim); }
-.lvl-far .blk-name { font-size: 24px; } /* stays readable when the board is zoomed out */
-.lvl-far .blk-kind { font-size: 16px; }
+/* Per-level text sizes, in board units, chosen so text is at least ~9px on screen at the level's lowest zoom
+   (far: 0.3, mid: 0.5). Near is at zoom 0.9 and up, so its sizes are the ordinary ones. */
+.lvl-far .blk-name { font-size: 30px; }
+.lvl-far .blk-kind { font-size: 20px; }
+.lvl-mid .blk-name { font-size: 20px; }
+.lvl-mid .blk-kind, .lvl-mid .blk-row, .lvl-mid .blk-meta { font-size: 18px; }
+.lvl-mid .blk-sec-label { display: none; } /* the rail colour says what a section is */
 .blk-sec { margin: 0 0 4px; padding: 2px 8px; border-left: 3px solid var(--slate); font-family: var(--font-mono); }
+.rail-data { border-left-color: var(--data); }
+.rail-control { border-left-color: var(--control); }
+.rail-slate { border-left-color: var(--slate); }
 .blk-sec-label { font-family: var(--font-ui); font-size: 9.5px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.1em; color: var(--dim); }
 .blk-row { display: flex; justify-content: space-between; gap: 8px; min-width: 0; }
 .blk-row > span:first-child { overflow-wrap: anywhere; }
@@ -54,12 +68,13 @@ html, body, #root { height: 100%; margin: 0; }
 .type-link { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; text-decoration: underline dotted; text-underline-offset: 3px; }
 .blk-intent { padding: 2px 8px 6px; color: var(--dim); font-family: var(--font-ui); }
 .blk-meta { padding: 0 8px 6px; color: var(--dim); }
+.blk-notes { padding: 0 8px 6px; color: var(--dim); font-family: var(--font-ui); font-style: italic; }
 .blk-chips { display: flex; flex-wrap: wrap; gap: 4px; padding: 2px 8px 8px; }
 .blk-chips .ty { padding: 1px 6px; border: 1px solid color-mix(in srgb, var(--data) 50%, transparent); border-radius: 3px; }
 
 /* Connection points show on hover and selection only. */
 .react-flow__handle { opacity: 0; transition: opacity 120ms; }
-.react-flow__node:hover .react-flow__handle, .react-flow__node.selected .react-flow__handle, .react-flow.connecting .react-flow__handle { opacity: 1; }
+.react-flow__node:hover .react-flow__handle, .react-flow__node.selected .react-flow__handle, .react-flow__handle.connectionindicator { opacity: 1; }
 
 @media (max-width: 900px) {
   .app { grid-template: "top" auto "palette" auto "canvas" 60vh "side" auto / 1fr; height: auto; }
