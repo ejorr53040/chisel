@@ -7,10 +7,11 @@ import { GENERATORS } from "../prompts";
 import { BlockErrors, BlockWarnings, KIND_KEYS, KIND_LABELS, fromNodes, isContainer, nodeTypes, parentsFirst, toFlowEdge, toNode, toNodes, type BlockNode, type LinkEdge } from "./nodes";
 import { BoardInspector, EdgeInspector, Inspector } from "./Inspector";
 import ELK from "elkjs/lib/elk-api.js";
-import { layoutBoard, type Size } from "../layout";
+import { PAD, layoutBoard, type Size } from "../layout";
 
 // Layout runs in a web worker so typing never waits on it.
 const elk = new ELK({ workerFactory: () => new Worker(new URL("elkjs/lib/elk-worker.min.js", import.meta.url)) });
+import.meta.hot?.dispose(() => elk.terminateWorker());
 
 type Run = { running: boolean; progress: string[]; result?: GenerateResult };
 
@@ -110,7 +111,8 @@ export function App() {
         .sort((a, b) => area(a) - area(b))[0];
       const abs = rf.getInternalNode(node.id)!.internals.positionAbsolute;
       const origin = target ? rf.getInternalNode(target.id)!.internals.positionAbsolute : { x: 0, y: 0 };
-      const position = { x: abs.x - origin.x, y: abs.y - origin.y };
+      // Inside a container, a drop is kept clear of its title and left edge, so the pin sits inside it.
+      const position = target ? { x: Math.max(PAD.side, abs.x - origin.x), y: Math.max(PAD.top, abs.y - origin.y) } : { x: abs.x - origin.x, y: abs.y - origin.y };
       moves.set(node.id, { parentId: target?.id, position });
     }
     // A dropped block is pinned: layout keeps it exactly there and grows its container around it.
@@ -134,12 +136,20 @@ export function App() {
     [nodes, edges],
   );
   const layoutRun = useRef(0);
+  const dragging = nodes.some((n) => n.dragging);
   useEffect(() => {
+    if (dragging) return; // a pinned block's position changes on every move; lay out once it's dropped
     const run = ++layoutRun.current;
     const timer = setTimeout(async () => {
       const sizes: Record<string, Size> = {};
       for (const n of nodes) if (!isContainer(n.type!) && n.measured?.width && n.measured.height) sizes[n.id] = { width: n.measured.width, height: n.measured.height };
-      const boxes = await layoutBoard(board, sizes, elk);
+      let boxes;
+      try {
+        boxes = await layoutBoard(board, sizes, elk);
+      } catch (e) {
+        console.error("layout failed; blocks stay where they are", e);
+        return;
+      }
       if (run !== layoutRun.current) return; // a newer layout is on its way
       setNodes((ns) =>
         ns.map((n) => {
@@ -152,7 +162,7 @@ export function App() {
     }, 120);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- layoutKey is the trigger; board and nodes are read at that moment
-  }, [layoutKey]);
+  }, [layoutKey, dragging]);
   const pinnedCount = nodes.filter((n) => n.data.block.pinned).length;
   const unpinAll = () => setNodes((ns) => ns.map((n) => (n.data.block.pinned ? { ...n, data: { block: { ...n.data.block, pinned: undefined } } } : n)));
 

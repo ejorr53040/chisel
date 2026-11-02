@@ -1,6 +1,6 @@
 import { createContext, useContext } from "react";
 import { Handle, MarkerType, Position, type Edge as FlowEdge, type Node, type NodeProps } from "@xyflow/react";
-import { CONTAINS, LANGS, type Block, type Board, type Edge, type EdgeKind, type Kind } from "../board";
+import { LANGS, isContainer, type Block, type Board, type Edge, type EdgeKind, type Kind } from "../board";
 import { blockLine, edgeVerb } from "../serialize";
 
 export type BlockNode = Node<{ block: Block }, Kind>;
@@ -32,9 +32,9 @@ export const KIND_KEYS: Record<Kind, string> = {
   entry: "e",
 };
 
-export const isContainer = (kind: Kind) => kind in CONTAINS;
+export { isContainer };
 
-// Default sizes; every container kind (anything in CONTAINS) gets one.
+// Sizes before the first layout; every container kind gets one.
 const containerSize = (kind: Kind) =>
   ({ module: { width: 360, height: 240 }, class: { width: 300, height: 200 } })[kind as string] ?? { width: 280, height: 160 };
 
@@ -90,15 +90,10 @@ export function fromNodes(nodes: BlockNode[], name: string, edges: Edge[]): Boar
   const blocks = nodes.map((n): Block => {
     const block: Block = {
       ...n.data.block,
-      position: { x: Math.round(n.position.x), y: Math.round(n.position.y) },
+      // Layout owns unpinned positions and container sizes, so only a pin's position is the user's to save.
+      position: n.data.block.pinned ? { x: Math.round(n.position.x), y: Math.round(n.position.y) } : n.data.block.position,
       parentId: n.parentId && ids.has(n.parentId) ? n.parentId : undefined,
     };
-    const fallback = containerSize(block.kind);
-    if (isContainer(block.kind))
-      block.size = {
-        width: Math.round(n.width ?? n.measured?.width ?? fallback.width),
-        height: Math.round(n.height ?? n.measured?.height ?? fallback.height),
-      };
     return block;
   });
   return { version: 2, name, blocks, edges: edges.filter((e) => ids.has(e.source) && ids.has(e.target)) };

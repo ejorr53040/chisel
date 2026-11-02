@@ -205,6 +205,7 @@ export const CONTAINS: Partial<Record<Kind, readonly Kind[]>> = {
   interface: ["function"],
 };
 export const canContain = (parent: Kind, child: Kind) => CONTAINS[parent]?.includes(child) ?? false;
+export const isContainer = (kind: Kind) => kind in CONTAINS;
 
 export const LANGS: readonly Lang[] = ["python", "rust", "cpp", "typescript"];
 export const TRIGGERS = ["main", "http", "cli"] as const;

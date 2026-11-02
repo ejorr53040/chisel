@@ -31,3 +31,10 @@ cannot route them.
   re-layered. Edges ELK routed around the old positions are stale for moved blocks; #42 routes edges from the final boxes.
 - Two pinned siblings may overlap; the user placed them there, and layout doesn't move pins.
 - A version-1 board opens fully pinned (migration), so nothing moves until the user unpins.
+- A container only grows right and down. A drop into a container is clamped clear of its title and left edge, so new
+  pins sit inside it; a pin from a version-1 board with a negative or title-bar position stays where it was.
+- `layoutBoard` returns boxes only. Spec #34 also asked it for edge bend points, but ELK's routes are stale once pins
+  move siblings, so #42 routes edges from these final boxes instead.
+- Only pinned positions are the user's: the board file keeps an unpinned block's last saved position and never the
+  one layout computed, so layout neither churns the file nor adds undo steps.
+- Empty containers get ELK's minimum size of 280×160.

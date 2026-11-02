@@ -81,4 +81,4 @@ kbd { font-family: var(--font-mono); font-size: var(--t-xs); color: var(--dim); 
 
 /* Layout moves blocks; a short glide shows where they went. Never while dragging, never with reduced motion. */
 .react-flow__node:not(.dragging) { transition: transform 180ms ease-out; }
-@media (prefers-reduced-motion: reduce) { .react-flow__node { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .react-flow__node:not(.dragging) { transition: none; } }

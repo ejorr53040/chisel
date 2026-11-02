@@ -2,7 +2,7 @@
 // ELK's layered algorithm places everything; it cannot hold exact positions (ADR 0002), so pinned blocks are then
 // put back where the user left them and their unpinned siblings are moved clear of them.
 import type { ElkNode } from "elkjs/lib/elk-api.js";
-import { CONTAINS, type Block, type Board } from "./board";
+import { isContainer as holds, type Block, type Board } from "./board";
 
 export interface Box {
   x: number; // relative to the parent block, like a block's stored position
@@ -13,10 +13,10 @@ export interface Box {
 export type Size = { width: number; height: number };
 
 const LEAF: Size = { width: 240, height: 72 }; // until the canvas has measured a block
-const PAD = { top: 40, side: 16 }; // room for a container's title above its children
+export const PAD = { top: 40, side: 16 }; // room for a container's title above its children
 const GAP = 24;
 
-const isContainer = (b: Block) => b.kind in CONTAINS;
+const isContainer = (b: Block) => holds(b.kind);
 
 const ROOT_OPTIONS = {
   "elk.algorithm": "layered",
@@ -29,7 +29,7 @@ const ROOT_OPTIONS = {
 const CONTAINER_OPTIONS = {
   "elk.padding": `[top=${PAD.top},left=${PAD.side},bottom=${PAD.side},right=${PAD.side}]`,
   "elk.nodeSize.constraints": "MINIMUM_SIZE",
-  "elk.nodeSize.minimum": "(200, 100)",
+  "elk.nodeSize.minimum": "(280, 160)",
 };
 
 // Boxes overlap, or sit closer than the gap.

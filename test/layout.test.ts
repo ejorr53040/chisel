@@ -4,6 +4,10 @@ import type { Block, Board } from "../src/board";
 import ELK from "elkjs/lib/elk.bundled.js";
 import { layoutBoard as layoutWith, type Box, type Size } from "../src/layout";
 import { importBoard } from "../src/importer";
+import { loadBoard } from "../src/store";
+import { mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 const fixture = (name: string): Board => JSON.parse(readFileSync(new URL(`fixtures/${name}.chisel.json`, import.meta.url), "utf8"));
 const outline = (name: string) => JSON.parse(readFileSync(new URL(`fixtures/import/${name}`, import.meta.url), "utf8"));
@@ -76,6 +80,24 @@ describe("layoutBoard", () => {
   it("lays out an imported repository", async () => {
     const b = importBoard({ name: "shop", outline: outline("shop.outline.json") });
     expectContract(b, await layoutBoard(b, {}));
+  });
+
+  it("opens a version 1 board with every block exactly where it was", async () => {
+    const path = join(mkdtempSync(join(tmpdir(), "chisel-layout-")), "old.chisel.json");
+    const at = { m: { x: 40, y: 30 }, f: { x: 20, y: 50 }, g: { x: 300, y: 50 }, s: { x: 700, y: 400 } };
+    writeFileSync(path, JSON.stringify({
+      version: 1, name: "old", edges: [{ id: "e", source: "f", target: "s", kind: "calls" }],
+      blocks: [
+        { id: "m", kind: "module", name: "m", position: at.m },
+        { id: "f", kind: "function", name: "f", parentId: "m", position: at.f, signature: "(a) -> B", intent: "", steps: [] },
+        { id: "g", kind: "function", name: "g", parentId: "m", position: at.g, signature: "", intent: "", steps: [] },
+        { id: "s", kind: "service", name: "s", position: at.s, description: "" },
+      ],
+    }));
+    const b = loadBoard(path);
+    const boxes = await layoutBoard(b, {});
+    for (const [id, pos] of Object.entries(at)) expect({ x: boxes[id].x, y: boxes[id].y }, id).toEqual(pos);
+    expectContract(b, boxes);
   });
 
   it("lays out a 200-block board within a second", async () => {
