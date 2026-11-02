@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "definitions": [
+    { "id": "main", "kind": "module", "name": "main", "path": "main.ts", "line": 1, "end_line": 6 },
+    { "id": "main.main", "kind": "function", "name": "main", "parent": "main", "path": "main.ts", "line": 3, "end_line": 6, "signature": "export function main(): void", "doc": "Starts the shop." },
+    { "id": "src.cart", "kind": "module", "name": "src.cart", "path": "src/cart.ts", "line": 1, "end_line": 12 },
+    { "id": "src.cart.addItem", "kind": "function", "name": "addItem", "parent": "src.cart", "path": "src/cart.ts", "line": 4, "end_line": 8, "signature": "export function addItem(cart: Cart, sku: string): Cart {", "doc": "Adds an item to the cart." },
+    { "id": "src.cart.total", "kind": "function", "name": "total", "parent": "src.cart", "path": "src/cart.ts", "line": 10, "end_line": 12, "signature": "function total(cart: Cart): number" },
+    { "id": "src.util.money", "kind": "module", "name": "src.util.money", "path": "src/util/money.ts", "line": 1, "end_line": 3 },
+    { "id": "src.util.money.format", "kind": "function", "name": "format", "parent": "src.util.money", "path": "src/util/money.ts", "line": 2, "end_line": 3, "signature": "export const format = (cents: number): string =>", "doc": "Formats cents as dollars." }
+  ],
+  "unindexed": ["vendor/legacy.js"]
+}
