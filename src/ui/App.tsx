@@ -288,7 +288,7 @@ export function App() {
       <header className="topbar">
         <span className="logo">
           <svg aria-hidden="true">
-            <use href="/blueprint.svg#mark" />
+            <use href="/mark.svg#mark" />
           </svg>
           chisel
         </span>
