@@ -190,12 +190,30 @@ describe("version 1 boards migrate to version 2 on load", () => {
     ["token", [{ name: "token", type: "" }], ""],
     ["", [], ""],
     ["()", [], ""],
+    ["(f: (a: A) => B): R", [{ name: "f", type: "(a: A) => B" }], "R"],
+    ["(a: A) => B", [{ name: "a", type: "A" }], "B"],
+    ['(s: str = ")", t: str = "a,b") -> R', [{ name: "s", type: 'str = ")"' }, { name: "t", type: 'str = "a,b"' }], "R"],
+    ["(&mut self, mut x: T) -> U", [{ name: "&mut self", type: "" }, { name: "mut x", type: "T" }], "U"],
   ])("parses %j into inputs and a return", (signature, inputs, returns) => {
     const b = load(signature);
     expect(b.version).toBe(2);
     expect(fn(b)).toMatchObject({ inputs, returns, errors: [] });
     expect(fn(b)).not.toHaveProperty("signature");
     expect(fn(b).importWarnings).toBeUndefined();
+  });
+
+  it("treats an unclosed parameter list as loose instead of guessing", () => {
+    const b = load("(a, b -> R");
+    expect(fn(b).inputs).toEqual([{ name: "a, b -> R", type: "" }]);
+    expect(fn(b).importWarnings?.[0].kind).toBe("loose-signature");
+  });
+
+  it("reports hand-edited import warnings that are not a list as an invalid board, not a crash", () => {
+    const path = join(tmp(), "old.chisel.json");
+    const board = JSON.parse(v1("(parent kind)"));
+    board.blocks[1].importWarnings = "oops";
+    writeFileSync(path, JSON.stringify(board));
+    expect(() => loadBoard(path)).toThrow(/invalid board file: .*import warnings/);
   });
 
   it("keeps a parameter list it cannot split as one input, with a warning badge", () => {

@@ -1,6 +1,6 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
-import { BLOCK_KINDS, EDGE_KINDS, IMPORT_WARNING_KINDS, LANGS, TRIGGERS, canContain, parseSignature, type Block, type Board, type Kind, type Lang } from "./board";
+import { BLOCK_KINDS, EDGE_KINDS, IMPORT_WARNING_KINDS, LANGS, TRIGGERS, canContain, LOOSE_SIGNATURE_WARNING, parseSignature, type Block, type Board, type Kind, type Lang } from "./board";
 import { DEFAULT_MODULE, serialize } from "./serialize";
 
 const KINDS = new Set<string>(BLOCK_KINDS);
@@ -56,8 +56,10 @@ function migrateV1(old: { version: 1; blocks: unknown }): unknown {
     if (x.kind !== "function" || typeof x.signature !== "string") return { ...x, pinned: true };
     const { signature, ...rest } = x;
     const { inputs, returns, loose } = parseSignature(signature);
-    const warning = { kind: "loose-signature", message: "The parameter list didn't split into names and types: check the inputs." };
-    return { ...rest, inputs, returns, errors: [], pinned: true, ...(loose && { importWarnings: [...(x.importWarnings ?? []), warning] }) };
+    // A hand-edited warnings value that isn't a list is passed on untouched, so validation reports it.
+    const prior = x.importWarnings ?? [];
+    const importWarnings = Array.isArray(prior) ? [...prior, LOOSE_SIGNATURE_WARNING] : prior;
+    return { ...rest, inputs, returns, errors: [], pinned: true, ...(loose ? { importWarnings } : {}) };
   });
   return { ...old, version: 2, blocks };
 }

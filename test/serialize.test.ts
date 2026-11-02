@@ -9,7 +9,7 @@ const golden = (name: string) =>
   readFileSync(new URL(`fixtures/${name}.arch.md`, import.meta.url), "utf8");
 
 describe("serialize", () => {
-  it.each(["single-function", "module-with-functions", "nested-modules", "all-kinds", "edges"])("renders %s to its golden architecture file", (name) => {
+  it.each(["single-function", "module-with-functions", "nested-modules", "all-kinds", "edges", "typed-function"])("renders %s to its golden architecture file", (name) => {
     expect(serialize(fixture(name)).arch).toBe(golden(name));
   });
 });

@@ -73,7 +73,14 @@ export function Inspector({ block, onChange }: { block: Block; onChange: (patch:
       <Text id="f-name" label="Name" code value={block.name} onChange={(name) => onChange({ name })} />
       {block.kind === "function" && (
         <>
-          <Inputs inputs={block.inputs} onChange={(inputs) => onChange({ inputs })} />
+          {/* Editing the inputs is the fix a loose-signature badge asks for, so it clears the badge. */}
+          <Inputs
+            inputs={block.inputs}
+            onChange={(inputs) => {
+              const kept = block.importWarnings?.filter((w) => w.kind !== "loose-signature");
+              onChange({ inputs, importWarnings: kept?.length ? kept : undefined });
+            }}
+          />
           <Text id="f-returns" label="Returns" code value={block.returns} onChange={(returns) => onChange({ returns })} />
           <Text id="f-errors" label="Errors, one type per line" code rows={2} value={block.errors.join("\n")} onChange={(v) => onChange({ errors: lines(v) })} />
           <Text id="f-intent" label="Intent" rows={2} value={block.intent} onChange={(intent) => onChange({ intent })} />

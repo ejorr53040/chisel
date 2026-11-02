@@ -14,7 +14,7 @@ const oneLine = (text: string) => text.replace(/\s*\n\s*/g, " ").trim();
 
 // "(a: A, b) -> R": each input as name or name: type, then the return when there is one.
 export function signatureText(fn: FunctionBlock): string {
-  const params = fn.inputs.map((p) => oneLine(p.name) + (p.type.trim() ? `: ${oneLine(p.type)}` : "")).filter(Boolean);
+  const params = fn.inputs.filter((p) => p.name.trim()).map((p) => oneLine(p.name) + (p.type.trim() ? `: ${oneLine(p.type)}` : ""));
   return `(${params.join(", ")})` + (fn.returns.trim() ? ` -> ${oneLine(fn.returns)}` : "");
 }
 

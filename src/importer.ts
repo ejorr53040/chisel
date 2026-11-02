@@ -1,6 +1,6 @@
 // Builds a board from a repository's code, as read by tesselate (`tesselate call outline`; see tesselate#76).
 // Pure: the adapter that runs tesselate hands over the facts, so everything here is tested with recorded JSON.
-import { parseSignature, type Block, type Board, type ImportWarning, type Kind } from "./board";
+import { LOOSE_SIGNATURE_WARNING, parseSignature, type Block, type Board, type ImportWarning, type Kind } from "./board";
 
 export interface OutlineDef {
   id: string; // tesselate's qualified id, stable across runs
@@ -82,7 +82,7 @@ export function importBoard(facts: Facts): Board {
       const { inputs, returns, loose } = parseSignature(declaredSignature(node.def?.signature));
       const warnings: ImportWarning[] = [
         ...(doc ? [] : [{ kind: "no-intent" as const, message: "No doc comment: write an intent." }]),
-        ...(loose ? [{ kind: "loose-signature" as const, message: "The parameter list didn't split into names and types: check the inputs." }] : []),
+        ...(loose ? [LOOSE_SIGNATURE_WARNING] : []),
       ];
       blocks.push({
         ...common,
