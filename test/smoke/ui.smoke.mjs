@@ -30,21 +30,25 @@ try {
   await page.getByLabel("Returns").fill("User");
   await page.getByLabel("Errors, one type per line").fill("AuthError");
 
-  // Nudge the function so drag-stop runs; it lands inside the module and gets nested.
-  const fn = await page.locator(".react-flow__node-function").first().boundingBox();
-  await page.mouse.move(fn.x + 20, fn.y + 10);
-  await page.mouse.down();
-  await page.mouse.move(fn.x + 60, fn.y + 60, { steps: 8 });
-  await page.mouse.up();
+  // Live layout keeps the blocks apart; drag one onto another to nest it (and pin it where it lands).
+  const settle = () => page.waitForTimeout(500);
+  const dragOnto = async (what, onto) => {
+    await settle();
+    const from = await what.boundingBox();
+    const to = await onto.boundingBox();
+    await page.mouse.move(from.x + 20, from.y + 10);
+    await page.mouse.down();
+    await page.mouse.move(to.x + to.width / 2, to.y + to.height / 2, { steps: 10 });
+    await page.mouse.up();
+    await settle();
+  };
+  const authBox = page.locator(".react-flow__node-module").first();
+  await dragOnto(page.locator(".react-flow__node-function").first(), authBox);
 
   // A module dropped onto another module nests too.
   await page.getByRole("button", { name: "+ Module" }).click();
   await page.getByLabel("Name", { exact: true }).fill("tokens");
-  const sub = await page.locator(".react-flow__node-module").last().boundingBox();
-  await page.mouse.move(sub.x + 40, sub.y + 12);
-  await page.mouse.down();
-  await page.mouse.move(sub.x - 60, sub.y + 40, { steps: 8 });
-  await page.mouse.up();
+  await dragOnto(page.locator(".react-flow__node-module").last(), authBox);
 
   const arch = await preview.textContent();
   assert.match(
@@ -283,6 +287,32 @@ try {
     await p4.mouse.up();
     assert.match(await dsl(), /^module main {2}@id _main\n {2}fn function/m, await dsl());
     await p4.close();
+  }
+
+  // Live layout: blocks added in a row never overlap, and a dragged (pinned) block stays put when another arrives.
+  {
+    const p5 = await browser.newPage({ viewport: { width: 1400, height: 900 } });
+    p5.on("pageerror", (e) => errors.push(e.message));
+    await p5.goto(url);
+    for (let i = 0; i < 5; i++) await p5.getByRole("button", { name: "+ Function" }).click();
+    await p5.waitForTimeout(800);
+    const boxes = await p5.locator(".react-flow__node-function").evaluateAll((els) => els.map((e) => e.getBoundingClientRect().toJSON()));
+    for (const [i, a] of boxes.entries())
+      for (const b of boxes.slice(i + 1))
+        assert.ok(a.right <= b.left || b.right <= a.left || a.bottom <= b.top || b.bottom <= a.top, `blocks overlap: ${JSON.stringify([a, b])}`);
+    const first = p5.locator(".react-flow__node-function").first();
+    const at = await first.boundingBox();
+    await p5.mouse.move(at.x + 20, at.y + 10);
+    await p5.mouse.down();
+    await p5.mouse.move(at.x + 20, at.y + 260, { steps: 10 });
+    await p5.mouse.up();
+    await p5.waitForTimeout(600);
+    const pinnedAt = await first.boundingBox();
+    assert.ok(await first.getByRole("img", { name: /^Pinned/ }).isVisible(), "a dragged block shows its pin");
+    await p5.getByRole("button", { name: "+ Function" }).click();
+    await p5.waitForTimeout(800);
+    assert.deepEqual(await first.boundingBox(), pinnedAt, "a pinned block stays where it was dropped");
+    await p5.close();
   }
 
   // The theme toggle overrides the system theme, and the choice survives a reload.
