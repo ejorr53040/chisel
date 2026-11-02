@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { EDGE_KINDS, LANGS, TRIGGERS, type Block, type Edge, type Target } from "../board";
+import { EDGE_KINDS, LANGS, TRIGGERS, type Block, type Edge, type Lang, type Target } from "../board";
 
 type Patch = Partial<Block>;
 
@@ -29,7 +29,7 @@ function Choice<T extends string>({ id, label, value, options, onChange }: { id:
   );
 }
 
-const LANG_LABELS = { python: "Python", rust: "Rust", cpp: "C++" } as const;
+const LANG_LABELS: Record<Lang, string> = { python: "Python", rust: "Rust", cpp: "C++", typescript: "TypeScript" };
 
 export function Inspector({ block, onChange }: { block: Block; onChange: (patch: Patch) => void }) {
   const lines = (v: string) => v.split("\n");

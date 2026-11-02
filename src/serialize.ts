@@ -63,6 +63,12 @@ function props(b: Block): [string, string | string[]][] {
   return out;
 }
 
+function edgeLine(e: Edge, byId: Map<string, Block>): string {
+  const target = byId.get(e.target)!;
+  const verb = edgeVerb(e) === e.kind ? e.kind : `"${edgeVerb(e)}"`;
+  return `-> ${verb} ${oneLine(target.name)} (@id ${target.id})  @edge ${e.id}`;
+}
+
 // Board features a target language can only approximate, warned about before generating.
 const LOSSY: Partial<Record<Lang, (board: Board, byId: Map<string, Block>) => Warning[]>> = {
   rust: (board, byId) =>
@@ -73,6 +79,19 @@ const LOSSY: Partial<Record<Lang, (board: Board, byId: Map<string, Block>) => Wa
         blockId: e.source,
         message: `Rust has no inheritance: ${oneLine(byId.get(e.source)!.name)} will embed ${oneLine(byId.get(e.target)!.name)} and share behaviour through a trait.`,
       })),
+  // Single inheritance: the parent the architecture file lists first stays `extends`; each further one is warned about.
+  typescript: (board, byId) => {
+    const firstParent = new Map<string, string>();
+    const name = (id: string) => oneLine(byId.get(id)!.name);
+    return board.edges
+      .filter((e) => e.kind === "inherits" && byId.has(e.source) && byId.has(e.target))
+      .sort((a, b) => byCodePoint(edgeLine(a, byId), edgeLine(b, byId)))
+      .flatMap((e) => {
+        const first = firstParent.get(e.source);
+        if (!first) return firstParent.set(e.source, e.target), [];
+        return [{ edgeId: e.id, blockId: e.source, message: `TypeScript classes extend one parent: ${name(e.source)} will extend ${name(first)} and take ${name(e.target)} as an interface or a field.` }];
+      });
+  },
 };
 
 export function serialize(board: Board, lang?: Lang): { arch: string; warnings: Warning[] } {
@@ -104,15 +123,10 @@ export function serialize(board: Board, lang?: Lang): { arch: string; warnings: 
     if (!outgoing.has(e.source)) outgoing.set(e.source, []);
     outgoing.get(e.source)!.push(e);
   }
-  const edgeLine = (e: Edge) => {
-    const target = byId.get(e.target)!;
-    const verb = edgeVerb(e) === e.kind ? e.kind : `"${edgeVerb(e)}"`;
-    return `-> ${verb} ${oneLine(target.name)} (@id ${target.id})  @edge ${e.id}`;
-  };
   // Within a kind, the rendered line decides the order, so the file always reads sorted.
   const edgesOf = (id: string) =>
     (outgoing.get(id) ?? [])
-      .map((e) => ({ e, line: edgeLine(e) }))
+      .map((e) => ({ e, line: edgeLine(e, byId) }))
       .sort((a, b) => EDGE_KINDS.indexOf(a.e.kind) - EDGE_KINDS.indexOf(b.e.kind) || byCodePoint(a.line, b.line))
       .map(({ line }) => line);
 

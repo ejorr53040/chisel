@@ -72,6 +72,29 @@ export const GENERATORS: Partial<Record<Lang, LangSpec>> = {
     // Configuring runs the project's CMake code and fetched dependencies; see the README's trust note.
     tools: ["Bash(cmake -S:*)", "Bash(cmake --build:*)"],
   },
+  typescript: {
+    label: "TypeScript",
+    layout: [
+      '- An npm package for Node 22+: package.json with `"type": "module"`, `"engines": { "node": ">=22" }` and `typescript` 7 pinned in devDependencies. The package name is the board name in kebab-case.',
+      '- tsconfig.json with `"strict": true`, `"module": "NodeNext"`, `"moduleResolution": "NodeNext"`, `"target": "ES2022"`, `"rootDir": "src"`, `"outDir": "dist"`. Relative imports end in `.js`.',
+      "- Each `module` becomes `src/<module>.ts`; a module nested in a module becomes `src/<parent>/<child>.ts`.",
+      "- The top-level `main` module becomes `src/app.ts`. If the board has an `entry main`, also write `src/main.ts` that calls into it.",
+      "- class → `export class`; field → typed property; interface → `export interface`; implements → `implements`; inherits → `extends`.",
+      "- A class can extend only one parent: if a class inherits from several, extend the first and take the others as an interface or a field. Record this in MAPPING.md.",
+      '- type struct → `export interface`; type enum → a union of string literals (`export type Mood = "happy" | "sad"`), not `enum`; const → `export const`.',
+      "- service → a client class whose connection settings come from `process.env`.",
+      "- entry cli → `parseArgs` from `node:util`; entry http → a route in the board's HTTP library, else `node:http`.",
+      "- Library blocks become `dependencies` (pick the most common npm package unless an override names one), with `@types/*` in devDependencies where a package needs them. No `any`; no non-null `!` outside tests.",
+    ].join("\n"),
+    verify: "`npm install --ignore-scripts`, then `npx --no-install tsc --noEmit`",
+    checks: [
+      ["npm", "install", "--ignore-scripts", "--no-audit", "--no-fund"],
+      ["npx", "--no-install", "tsc", "--noEmit"],
+    ],
+    // --ignore-scripts: dependencies' install scripts never run, unlike cargo build scripts or CMake code.
+    // --no-install: without the project's typescript, npx would fetch the unrelated `tsc` package instead.
+    tools: ["Bash(npm install --ignore-scripts:*)", "Bash(npx --no-install tsc --noEmit:*)"],
+  },
 };
 
 // hasOwn, not `in`: a language like "__proto__" must not resolve to Object.prototype.

@@ -50,7 +50,7 @@ describe.skipIf(!process.env.CHISEL_AGENT_SMOKE).each(langs)("real agent: %s", (
     expect(result.files).toContain("MAPPING.md");
     // Check the agent's claim ourselves, with the same commands the server uses.
     expect(await runChecks(result.runDir, lang, new AbortController().signal)).toEqual([]);
-    const sources = result.files.filter((f) => /\.(py|rs|cpp|hpp|h|cc)$/.test(f));
+    const sources = result.files.filter((f) => /\.(py|rs|cpp|hpp|h|cc|ts)$/.test(f));
     expect(sources.some((f) => readFileSync(join(result.runDir, f), "utf8").includes("greeting"))).toBe(true);
   });
 });

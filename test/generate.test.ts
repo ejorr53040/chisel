@@ -48,6 +48,24 @@ describe("generate", () => {
     expect(result.errors).toEqual([]);
   });
 
+  it("generates TypeScript as an ESM npm package checked by tsc, allowing only the install and type-check", async () => {
+    const outDir = tmp();
+    let seen: { prompt: string; tools: string[] } | undefined;
+    const runner: Runner = async (job) => {
+      seen = job;
+      return succeeds(job);
+    };
+
+    const result = await run({ lang: "typescript", outDir, runner });
+
+    expect(result.runDir.startsWith(join(outDir, "typescript") + "/")).toBe(true);
+    expect(seen!.prompt).toContain("You are generating a TypeScript project");
+    expect(seen!.prompt).toContain('"type": "module"');
+    expect(seen!.prompt).toContain("NodeNext");
+    expect(seen!.prompt).toContain("`npm install --ignore-scripts`, then `npx --no-install tsc --noEmit`");
+    expect(seen!.tools).toEqual(["Read", "Write", "Edit", "Glob", "Grep", "Bash(ls:*)", "Bash(npm install --ignore-scripts:*)", "Bash(npx --no-install tsc --noEmit:*)"]);
+  });
+
   it("forwards the agent's progress", async () => {
     const lines: string[] = [];
     await run({ onProgress: (l) => lines.push(l) });
@@ -151,6 +169,21 @@ describe("generate", () => {
       expect(result.errors).toEqual([
         { blockId: "f_main", message: "demo/main.py:4: error: No return value expected  [return-value]" },
         { message: "notes.txt:1: error: elsewhere" },
+      ]);
+    });
+
+    it("reads tsc's path(line,col) diagnostics and finds the line's block", async () => {
+      const ts = "// @id f_main\nexport function main(): number {\n  return 'x';\n}\n";
+      const result = await run({
+        lang: "typescript",
+        runner: fakeAgent({ ok: true, errors: [] }, { "src/app.ts": ts }),
+        verify: async () => [
+          { message: "npx --no-install tsc --noEmit failed:\nsrc/app.ts(3,3): error TS2322: Type 'string' is not assignable to type 'number'.\nnotes.ts(1,1): error TS1005: elsewhere" },
+        ],
+      });
+      expect(result.errors).toEqual([
+        { blockId: "f_main", message: "src/app.ts(3,3): error TS2322: Type 'string' is not assignable to type 'number'." },
+        { message: "notes.ts(1,1): error TS1005: elsewhere" },
       ]);
     });
 
@@ -271,6 +304,16 @@ describe("generate", () => {
     expect(existsSync(join(first, "target"))).toBe(false);
     expect(existsSync(join(first, "src/lib.rs"))).toBe(true);
     expect(existsSync(join(second, "target/debug/big.bin"))).toBe(true);
+  });
+
+  it("clears installed npm dependencies from older TypeScript runs", async () => {
+    const outDir = tmp();
+    const withDeps = fakeAgent({ ok: true, errors: [] }, { "package.json": "{}", "node_modules/left-pad/index.js": "x", "src/app.ts": "" });
+    const first = (await run({ lang: "typescript", outDir, runner: withDeps })).runDir;
+    const second = (await run({ lang: "typescript", outDir, runner: withDeps })).runDir;
+    expect(existsSync(join(first, "node_modules"))).toBe(false);
+    expect(existsSync(join(first, "src/app.ts"))).toBe(true);
+    expect(existsSync(join(second, "node_modules/left-pad/index.js"))).toBe(true);
   });
 
   it("recognises its own run folders and nothing else", async () => {

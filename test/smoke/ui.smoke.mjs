@@ -13,7 +13,7 @@ page.on("pageerror", (e) => errors.push(e.message));
 try {
   await page.goto(url);
   const preview = page.getByLabel("Architecture file preview");
-  assert.deepEqual(await page.getByLabel("Target language").locator("option").allTextContents(), ["Python", "Rust", "C++"]);
+  assert.deepEqual(await page.getByLabel("Target language").locator("option").allTextContents(), ["Python", "Rust", "C++", "TypeScript"]);
 
   await page.getByRole("button", { name: "+ Module" }).click();
   await page.getByLabel("Name", { exact: true }).fill("auth");

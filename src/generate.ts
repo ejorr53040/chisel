@@ -28,7 +28,7 @@ const RUN_DIR = /^\d{4}-\d\d-\d\dT/;
 // Build and cache output is noise in the file list.
 // Build output at a run's root, and the file that proves a build system made it (null: always build output).
 // A Python package that happens to be named "build" is source, not output.
-const BUILD_OUTPUT: Record<string, string | null> = { target: "Cargo.toml", build: "CMakeLists.txt", ".mypy_cache": null };
+const BUILD_OUTPUT: Record<string, string | null> = { target: "Cargo.toml", build: "CMakeLists.txt", node_modules: "package.json", ".mypy_cache": null };
 const isBuildOutput = (runDir: string, dir: string) =>
   Object.hasOwn(BUILD_OUTPUT, dir) && (BUILD_OUTPUT[dir] === null || existsSync(join(runDir, BUILD_OUTPUT[dir]!)));
 // Caches that are noise at any depth.
@@ -180,13 +180,13 @@ const changedFiles = async (repo: string, boardFiles: string[]) =>
 
 // Ids are any non-space run ending in a word character, so "@id f_x." or "@id f_x:" drop the punctuation.
 const ID = /@id\s+([^\s:,;()"']*\w)/;
-// A source location like src/lib.rs:6:5, anywhere in a line.
-const LOCATION = /([\w./-]+\.\w+):(\d+)(?::\d+)?/;
-// A line that starts one diagnostic: "path:line[:col]: error" (mypy, gcc, clang), "error[E0308]:" (rustc),
+// A source location like src/lib.rs:6:5, or tsc's src/app.ts(6,5), anywhere in a line.
+const LOCATION = /([\w./-]+\.\w+)(?::(\d+)(?::\d+)?|\((\d+),\d+\))/;
+// A line that starts one diagnostic: "path:line[:col]: error" (mypy, gcc, clang), "path(line,col): error" (tsc), "error[E0308]:" (rustc),
 // GNU ld's "file.cpp:(.text+0x5): undefined reference" or lld's "ld.lld: error:". gcc's "required from
 // here" backtrace lines are not headers.
 const HEADER =
-  /^(?:[\w./-]+\.\w+:\d+(?::\d+)?(?:: (?:fatal )?error| - error)|(?:error|warning|note)(?:\[\w+\])?:|\S+:\(\.[\w.$]+\+0x[0-9a-f]+\): undefined reference|\S*ld(?:\.lld)?: error:)/;
+  /^(?:[\w./-]+\.\w+:\d+(?::\d+)?(?:: (?:fatal )?error| - error)|[\w./-]+\.\w+\(\d+,\d+\): error|(?:error|warning|note)(?:\[\w+\])?:|\S+:\(\.[\w.$]+\+0x[0-9a-f]+\): undefined reference|\S*ld(?:\.lld)?: error:)/;
 
 // Splits checker output into one message per error; warnings, notes and "could not compile" summaries
 // are dropped. Undefined when the output holds no located error, so it stays one message.
@@ -226,7 +226,8 @@ function attribute(runDir: string, arch: string, errors: GenError[]): GenError[]
 // ponytail: the nearest @id above a line can be a sibling when the error is in module-level code between
 // definitions; good enough to point at the right area of the board.
 function idAbove(runDir: string, message: string): string | undefined {
-  const [, path, line] = LOCATION.exec(message) ?? [];
+  const [, path, colonLine, parenLine] = LOCATION.exec(message) ?? [];
+  const line = colonLine ?? parenLine;
   if (!path) return;
   let file: string;
   try {

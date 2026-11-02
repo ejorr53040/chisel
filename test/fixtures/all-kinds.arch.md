@@ -9,6 +9,7 @@ module main  @id _main
     python: fastapi
     rust: axum
     cpp: drogon
+    typescript: fastify
   service postgres  @id s_db
     description: Stores carts.
 
