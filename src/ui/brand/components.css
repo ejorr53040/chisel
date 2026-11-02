@@ -1,164 +1,77 @@
-/* ═══════════════════════════════════════════════════════════════════════════
-   ejorr — components
-   Requires tokens.css. Every value here comes from a token; if you need a
-   colour that isn't in tokens.css, add it there, not here.
-
-   Page grammar: each section is a .sky panel; content inside it sits on
-   .glass cards; pictures sit on .tile (navy) — see imagery.md.
-   ═══════════════════════════════════════════════════════════════════════════ */
+/* Chisel components. Every value comes from tokens.css; add a token there rather than a literal here.
+   Panels are solid surfaces with a hairline edge: no blur, no gradients, no shadows. */
 
 *, *::before, *::after { box-sizing: border-box; }
 
 body {
   margin: 0;
-  background: var(--bg);            /* explicit: a transparent body borrows
-                                       the host's theme and breaks */
+  background: var(--bg);
   color: var(--text);
-  font-family: var(--font-body);
+  font-family: var(--font-ui);
   font-size: var(--t-base);
-  line-height: 1.65;
+  line-height: 1.5;
   -webkit-font-smoothing: antialiased;
 }
 
-/* ── layout ─────────────────────────────────────────────────────────────── */
-.wrap    { max-width: var(--wrap); margin: 0 auto;
-           padding-left: max(var(--gutter), env(safe-area-inset-left, 0px));
-           padding-right: max(var(--gutter), env(safe-area-inset-right, 0px)); }
-.stack   { display: flex; flex-direction: column; gap: var(--s5); }
-.row     { display: flex; align-items: center; gap: var(--s4); flex-wrap: wrap; }
-.grid    { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: var(--s4); }
-.grid > *, .row > * { min-width: 0; }
-.measure { max-width: var(--measure); }
+/* layout */
+.stack { display: flex; flex-direction: column; gap: var(--s5); }
+.row   { display: flex; align-items: center; gap: var(--s4); flex-wrap: wrap; }
+.row > * { min-width: 0; }
 
-/* ── type: Outfit for headlines, Fragment Mono for everything else ────── */
-.h1, h1, .h2, h2, .h3, h3 {
-  font-family: var(--font-head); font-weight: 500; letter-spacing: -0.02em;
-  line-height: 1.12; margin: 0; text-wrap: balance;
-}
-.h1, h1 { font-size: var(--t-xl); }
-.h2, h2 { font-size: var(--t-lg); }
-.h3, h3 { font-size: var(--t-md); letter-spacing: -0.01em; }
+/* type: Geist for the interface, JetBrains Mono for anything that is code */
+h1, h2, h3 { font-weight: 600; letter-spacing: -0.02em; line-height: 1.15; margin: 0; text-wrap: balance; }
 p { margin: 0; }
-.lead  { font-size: var(--t-md); color: var(--dim); max-width: var(--measure); }
-.label {                               /* uppercase eyebrow / section marker */
-  font-size: var(--t-label); text-transform: uppercase; letter-spacing: 0.1em; color: var(--dim);
-}
+.label { font-size: var(--t-label); font-weight: 500; text-transform: uppercase; letter-spacing: 0.1em; color: var(--dim); }
 .meta  { font-size: var(--t-xs); color: var(--dim); }
 .dim   { color: var(--dim); }
-.num   { font-variant-numeric: tabular-nums; }
-
-/* Fragment Mono has one weight: emphasis is colour, never bold or italic. */
-em, strong, b, i { font-style: normal; font-weight: inherit; color: var(--link); }
-a { color: var(--link); text-decoration: underline; text-underline-offset: 3px; text-decoration-thickness: 1px; }
-a:hover { text-decoration-thickness: 2px; }
-code, kbd { font-family: var(--font-mono); font-size: 0.92em; background: var(--inset); padding: 1px 5px; border-radius: 4px; }
+a { color: var(--accent-text); text-underline-offset: 3px; }
+code, kbd, pre { font-family: var(--font-mono); }
+code, kbd { font-size: 0.92em; background: var(--inset); padding: 1px 5px; border-radius: 4px; }
 pre { background: var(--inset); padding: var(--s4); border-radius: var(--r-card); overflow-x: auto; margin: 0; }
-pre code { background: none; padding: 0; }
 
-:focus-visible { outline: 2px solid var(--fill); outline-offset: 2px; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
-/* ── sky panel: one per section ───────────────────────────────────────────
-   The baked cloud image comes from `gen_pattern.py sky`. A page sets
-   --sky-img per theme (url() for a site, a data: URI in an Artifact);
-   without it the panel falls back to the plain gradient. */
-.sky {
-  position: relative; overflow: hidden; border-radius: var(--r-panel);
-  padding: clamp(var(--s5), 4vw, var(--s8));
-  background: var(--sky-img, linear-gradient(180deg, var(--sky), var(--bg) 85%)) center top / cover no-repeat,
-              var(--bg);
-  display: flex; flex-direction: column; gap: var(--s5);
-}
-.sky + .sky { margin-top: var(--s5); }   /* plain ground shows between panels */
+/* panel: a raised solid surface */
+.panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-panel); padding: var(--s5); }
 
-/* ── glass card ───────────────────────────────────────────────────────── */
-.glass {
-  background: var(--glass); border: 1px solid var(--glass-edge); border-radius: var(--r-card);
-  padding: var(--s5);
-  -webkit-backdrop-filter: blur(var(--blur)) saturate(1.2);
-  backdrop-filter: blur(var(--blur)) saturate(1.2);
-}
-.glass.flush { padding: 0; overflow: hidden; }
-
-/* ── buttons: all glass pills ─────────────────────────────────────────── */
+/* buttons */
 .btn {
   display: inline-flex; align-items: center; gap: var(--s3);
-  font: inherit; font-size: var(--t-sm); line-height: 1; color: var(--text);
-  padding: 10px 18px; border-radius: var(--r-pill); cursor: pointer; text-decoration: none;
-  background: var(--glass); border: 1px solid var(--glass-edge);
-  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+  font: inherit; font-size: var(--t-sm); font-weight: 500; line-height: 1; color: var(--text);
+  padding: 9px 14px; border-radius: var(--r-card); cursor: pointer; text-decoration: none;
+  background: var(--surface); border: 1px solid var(--border-control);
 }
-.btn:hover { border-color: var(--border-control); }
-.btn--primary { color: var(--link); border: 1.5px solid var(--fill); }   /* the one cue: a blue edge */
-.btn--primary:hover { border-color: var(--link); }
-.btn--link {                            /* the secondary action */
-  background: none; border-color: transparent; -webkit-backdrop-filter: none; backdrop-filter: none;
-  padding-inline: var(--s2); text-decoration: underline; text-underline-offset: 4px;
-}
-.btn--danger { color: var(--err); border: 1.5px solid var(--err); }
+.btn:hover { border-color: var(--text); }
+.btn--primary { color: var(--accent-text); border-color: var(--accent); }
+.btn--primary:hover { border-color: var(--accent-text); }
+.btn--link { background: none; border-color: transparent; padding-inline: var(--s2); text-decoration: underline; text-underline-offset: 4px; }
+.btn--danger { color: var(--fault); border-color: var(--fault); }
 .btn[disabled] { opacity: 0.5; cursor: not-allowed; }
-.btn--sm { font-size: var(--t-xs); padding: 7px 12px; }
+.btn--sm { font-size: var(--t-xs); padding: 6px 10px; }
 
-/* ── chips ────────────────────────────────────────────────────────────── */
+/* chips */
 .chip {
   display: inline-flex; align-items: center; gap: var(--s2);
-  font-size: var(--t-xs); line-height: 1; padding: 5px 10px; border-radius: var(--r-pill);
-  background: var(--surface); color: var(--dim); border: 1px solid var(--border);
+  font-size: var(--t-xs); line-height: 1; padding: 4px 8px; border-radius: var(--r-pill);
+  background: var(--inset); color: var(--dim); border: 1px solid var(--border);
 }
-.chip--accent { background: var(--wash); color: var(--link); border-color: transparent; }
-.chip--ok   { color: var(--ok);   border-color: var(--ok); }
-.chip--warn { color: var(--warn); border-color: var(--warn); }
-.chip--err  { color: var(--err);  border-color: var(--err); }
+.chip--accent { color: var(--accent-text); border-color: var(--accent); }
 
-/* ── tables ───────────────────────────────────────────────────────────── */
-.table-wrap {                          /* the only element allowed to scroll sideways */
-  overflow-x: auto; border-radius: var(--r-card); border: 1px solid var(--border); background: var(--surface);
-}
-table { width: 100%; border-collapse: collapse; font-size: var(--t-xs); font-variant-numeric: tabular-nums; }
-th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--border); white-space: nowrap; }
-th { background: var(--inset); color: var(--dim); font-weight: inherit; text-transform: uppercase;
-     letter-spacing: 0.08em; font-size: var(--t-label); }
-tr:last-child td { border-bottom: 0; }
-
-/* ── nav: a glass pill bar ────────────────────────────────────────────── */
-.nav {
-  display: flex; align-items: center; gap: var(--s5); flex-wrap: wrap;
-  padding: 8px 10px 8px 16px; border-radius: var(--r-pill);
-  background: var(--glass); border: 1px solid var(--glass-edge);
-  -webkit-backdrop-filter: blur(var(--blur)); backdrop-filter: blur(var(--blur));
-}
+/* wordmark: lowercase chisel in Geist 600, tight */
 .logo { display: inline-flex; align-items: center; gap: var(--s3); color: var(--text); text-decoration: none;
-        font-family: var(--font-head); font-weight: 500; font-size: var(--t-md); letter-spacing: -0.02em; }
+        font-family: var(--font-ui); font-weight: 600; font-size: var(--t-md); letter-spacing: -0.03em; }
 .logo svg { width: 22px; height: 22px; }
-.nav-links { display: flex; gap: var(--s5); margin-inline-start: auto; font-size: var(--t-sm); }
-.nav-links a { color: var(--dim); text-decoration: none; }
-.nav-links a:hover, .nav-links [aria-current] { color: var(--text); }
 
-/* ── forms ────────────────────────────────────────────────────────────── */
+/* forms */
 .field { display: flex; flex-direction: column; gap: var(--s2); }
 .field label { font-size: var(--t-xs); color: var(--dim); }
 input, select, textarea {
-  font: inherit; font-size: var(--t-sm); color: var(--text); background: var(--surface);
-  border: 1px solid var(--border-control); border-radius: var(--r-card); padding: 9px 12px; min-width: 0;
+  font: inherit; font-size: var(--t-sm); color: var(--text); background: var(--inset);
+  border: 1px solid var(--border-control); border-radius: var(--r-card); padding: 7px 10px; min-width: 0;
 }
-input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px solid var(--fill); outline-offset: 1px; }
+textarea, .mono { font-family: var(--font-mono); }
+input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 
-@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  .glass, .btn, .nav { background: var(--surface); }   /* no blur: solid, still on-palette */
-}
-
-/* ── imagery: icons and blueprint tiles (symbols in blueprint.svg) ────────
-   <svg class="icon"><use href="#i-chip"/></svg>
-   <figure class="tile"><svg viewBox="0 0 200 150">
-     <use class="bp-sheet" href="#sheet-frame"/><use href="#d-module"/><use class="bp-dims" href="#d-module-dims"/>
-   </svg></figure> */
-.icon { width: 24px; height: 24px; flex: none; color: inherit; --hl: var(--fill); }
-.tile {
-  margin: 0; display: grid; place-items: center; aspect-ratio: 4 / 3; max-width: 100%;
-  background: var(--tile); color: var(--tile-line); --hl: var(--tile-hl);
-  border-radius: var(--r-card); container-type: inline-size; overflow: hidden;
-}
-.tile svg { width: 100%; height: auto; display: block; }
-@container (max-width: 320px) {         /* small: the bare object, no sheet */
-  .tile .bp-sheet, .tile .bp-dims { display: none; }
-  .tile svg { width: 84%; }
-}
+/* status chips */
+.chip--ok    { color: var(--ok);    border-color: var(--ok); }
+.chip--err   { color: var(--fault); border-color: var(--fault); }

@@ -2,8 +2,8 @@
   "name": "Chisel",
   "short_name": "Chisel",
   "display": "standalone",
-  "theme_color": "#F9F8F8",
-  "background_color": "#0D1B3D",
+  "theme_color": "#24272a",
+  "background_color": "#24272a",
   "icons": [
     {
       "src": "icon-192.png",

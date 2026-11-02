@@ -272,6 +272,15 @@ try {
     await p4.close();
   }
 
+  // The theme toggle overrides the system theme, and the choice survives a reload.
+  const bgOf = () => page.evaluate(() => getComputedStyle(document.body).backgroundColor);
+  const before = await bgOf();
+  await page.getByRole("button", { name: /^Switch to (light|dark) theme$/ }).click();
+  assert.notEqual(await bgOf(), before);
+  const chosen = await page.evaluate(() => document.documentElement.dataset.theme);
+  await page.reload();
+  assert.equal(await page.evaluate(() => document.documentElement.dataset.theme), chosen);
+
   await page.screenshot({ path: process.env.SHOT ?? join(tmpdir(), "chisel-smoke.png") });
   assert.deepEqual(errors, []);
   console.log("ui smoke: ok");

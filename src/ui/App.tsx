@@ -323,6 +323,7 @@ export function App() {
         <button className="btn btn--sm btn--link" onClick={() => setHelp(true)} aria-keyshortcuts="?">
           Shortcuts
         </button>
+        <ThemeToggle />
         {status && (
           <span role="status" className={`chip ${status.ok ? "chip--ok" : "chip--err"}`}>
             {status.msg}
@@ -330,7 +331,7 @@ export function App() {
         )}
       </header>
 
-      <aside className="palette glass">
+      <aside className="palette panel">
         <div className="label">Blocks</div>
         {(Object.keys(KIND_LABELS) as Kind[]).map((kind) => (
           <button key={kind} className="btn btn--sm palette-btn" onClick={() => add(kind)} aria-keyshortcuts={KIND_KEYS[kind]}>
@@ -365,7 +366,7 @@ export function App() {
       </main>
 
       <aside className="side">
-        <section className="glass inspector">
+        <section className="panel inspector">
           <div className="label">Inspector</div>
           {selected ? (
             <Inspector block={selected.data.block} onChange={(p) => update(selected.id, p)} />
@@ -381,7 +382,7 @@ export function App() {
             <BoardInspector key={historyEpoch} target={target} onChange={setTarget} />
           )}
         </section>
-        <section className="glass preview">
+        <section className="panel preview">
           <div className="label">Architecture file</div>
           {warnings.length > 0 && (
             <ul className="warnings" aria-label={`Warnings for ${GENERATORS[lang]?.label ?? lang}`}>
@@ -411,7 +412,7 @@ function RunPanel({
 }) {
   const r = run.result;
   return (
-    <section className="glass run" aria-label="Generation run">
+    <section className="panel run" aria-label="Generation run">
       <div className="run-head">
         <span className="label">Run</span>
         {run.running && <span className="chip chip--accent">running</span>}
@@ -465,10 +466,36 @@ const SHORTCUTS: [string, string][] = [
   ["?", "Show or hide this list"],
 ];
 
+// An explicit choice wins over the system theme in both directions and is remembered in this browser.
+function ThemeToggle() {
+  const [theme, setTheme] = useState<string | null>(() => {
+    try {
+      return localStorage.getItem("chisel-theme");
+    } catch {
+      return null;
+    }
+  });
+  useEffect(() => {
+    if (theme) document.documentElement.dataset.theme = theme;
+    else delete document.documentElement.dataset.theme;
+    try {
+      if (theme) localStorage.setItem("chisel-theme", theme);
+    } catch {
+      // storage blocked: the choice lasts for this page only
+    }
+  }, [theme]);
+  const dark = theme ? theme === "dark" : !matchMedia("(prefers-color-scheme: light)").matches;
+  return (
+    <button className="btn btn--sm" aria-label={`Switch to ${dark ? "light" : "dark"} theme`} onClick={() => setTheme(dark ? "light" : "dark")}>
+      {dark ? "☀" : "☾"}
+    </button>
+  );
+}
+
 function ShortcutHelp({ onClose }: { onClose: () => void }) {
   return (
     <div className="help-backdrop" onClick={onClose}>
-      <div role="dialog" aria-modal="true" aria-label="Keyboard shortcuts" className="glass help" onClick={(e) => e.stopPropagation()}>
+      <div role="dialog" aria-modal="true" aria-label="Keyboard shortcuts" className="panel help" onClick={(e) => e.stopPropagation()}>
         <div className="label">Keyboard shortcuts</div>
         <table>
           <tbody>
