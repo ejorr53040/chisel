@@ -45,4 +45,4 @@ Generate runs Claude Code on your machine with the board's text as instructions.
 
 The mark is the Sickle: four flat triangles along one arc, shrinking from a thick base to an oxide tip. The wordmark is a lowercase `chisel` in Geist 600; code is set in JetBrains Mono. Colours, by how much of the interface they cover: graphite, slate, marble, with oxide as the one accent. Every token lives in `src/ui/brand/tokens.css`.
 
-The Sickle's geometry is defined once, in `scripts/brand.py`. `python3 scripts/brand.py` regenerates the `#mark` symbol in `public/mark.svg`, the favicon set in `public/` and the cards in `docs/` (the cards need chromium, or `CHROMIUM=…`).
+The Sickle's geometry is defined once, in `scripts/brand.py`. `python3 scripts/brand.py` regenerates the `#mark` symbol in `public/mark.svg`, the favicon set in `public/` and the cards in `docs/` (the cards need chromium, or `CHROMIUM=…`, and `npm install` for the bundled fonts). The old ejorr blueprint library is gone; `mark.svg` holds the only symbol the app draws.

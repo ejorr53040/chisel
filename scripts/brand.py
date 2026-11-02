@@ -9,7 +9,7 @@ Its geometry lives here and nowhere else; every asset is drawn from it:
     public/icon-192.png, icon-512.png, apple-touch-icon.png
     docs/og-dark.png, docs/og-light.png   1200x630 cards (rendered with chromium for the type)
 
-    python3 scripts/brand.py   # needs only Python and, for the cards, chromium (or CHROMIUM=...)
+    python3 scripts/brand.py   # needs Python; the cards also need chromium (or CHROMIUM=...) and `npm install` for the fonts
 """
 import math
 import os
@@ -21,6 +21,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 GRAPHITE, MARBLE, OXIDE = "#24272a", "#eceeec", "#c86a45"
+OXIDE_ON_LIGHT = "#b05a38"  # the light theme's --accent
 
 
 def triangle(cx, cy, length, width, angle):
@@ -56,7 +57,7 @@ def points(t):
 
 
 def svg_body(base, tip):
-    return "".join(f'<polygon points="{points(t)}" {tip if i == 3 else base}/>' for i, t in enumerate(TRIS))
+    return "".join(f'<polygon points="{points(t)}" {tip if t is TRIS[-1] else base}/>' for t in TRIS)
 
 
 # ── raster: the mark is only triangles, so a supersampled edge-function fill is all PNGs need ──
@@ -65,35 +66,31 @@ def hex_rgb(h):
     return tuple(int(h[i:i + 2], 16) for i in (1, 3, 5))
 
 
-def raster(size, background, mark_scale):
-    """RGBA pixels of the mark on a solid square (background None = transparent), mark_scale of the tile."""
-    px = [list(hex_rgb(background)) + [255] if background else [0, 0, 0, 0] for _ in range(size * size)]
-    k = size / 48 * mark_scale
+def tile(size, mark_scale=0.78):
+    """RGBA pixels of the marble-and-oxide mark on a graphite square, the mark filling mark_scale of it."""
+    pixels = [list(hex_rgb(GRAPHITE)) for _ in range(size * size)]
+    scale = size / 48 * mark_scale
     off = size * (1 - mark_scale) / 2
-    ss = 4
-    for i, tri in enumerate(TRIS):
-        colour = hex_rgb(OXIDE if i == 3 else MARBLE)
-        (x0, y0), (x1, y1), (x2, y2) = [(x * k + off, y * k + off) for x, y in tri]
-        area = (x1 - x0) * (y2 - y0) - (x2 - x0) * (y1 - y0)
-        for py in range(max(0, int(min(y0, y1, y2))), min(size, int(max(y0, y1, y2)) + 1)):
-            for pxl in range(max(0, int(min(x0, x1, x2))), min(size, int(max(x0, x1, x2)) + 1)):
+    ss = 4  # samples per pixel edge
+    for tri in TRIS:
+        colour = hex_rgb(OXIDE if tri is TRIS[-1] else MARBLE)
+        (x0, y0), (x1, y1), (x2, y2) = [(x * scale + off, y * scale + off) for x, y in tri]
+        sign = 1 if (x1 - x0) * (y2 - y0) - (x2 - x0) * (y1 - y0) > 0 else -1  # either winding counts as inside
+        for row in range(max(0, int(min(y0, y1, y2))), min(size, int(max(y0, y1, y2)) + 1)):
+            for col in range(max(0, int(min(x0, x1, x2))), min(size, int(max(x0, x1, x2)) + 1)):
                 hits = 0
                 for sy in range(ss):
                     for sx in range(ss):
-                        x, y = pxl + (sx + 0.5) / ss, py + (sy + 0.5) / ss
-                        w0 = (x1 - x) * (y2 - y) - (x2 - x) * (y1 - y)
-                        w1 = (x2 - x) * (y0 - y) - (x0 - x) * (y2 - y)
-                        w2 = (x0 - x) * (y1 - y) - (x1 - x) * (y0 - y)
-                        if (w0 >= 0 and w1 >= 0 and w2 >= 0) if area > 0 else (w0 <= 0 and w1 <= 0 and w2 <= 0):
-                            hits += 1
-                if hits:
+                        x, y = col + (sx + 0.5) / ss, row + (sy + 0.5) / ss
+                        edges = ((x1 - x) * (y2 - y) - (x2 - x) * (y1 - y),
+                                 (x2 - x) * (y0 - y) - (x0 - x) * (y2 - y),
+                                 (x0 - x) * (y1 - y) - (x1 - x) * (y0 - y))
+                        hits += all(e * sign >= 0 for e in edges)
+                if hits:  # coverage blends the colour over the opaque ground
                     a = hits / ss ** 2
-                    p = px[py * size + pxl]
-                    out_a = a + p[3] / 255 * (1 - a)
-                    for c in range(3):
-                        p[c] = round((colour[c] * a + p[c] * p[3] / 255 * (1 - a)) / out_a)
-                    p[3] = round(out_a * 255)
-    return px
+                    p = pixels[row * size + col]
+                    pixels[row * size + col] = [round(colour[c] * a + p[c] * (1 - a)) for c in range(3)]
+    return [p + [255] for p in pixels]
 
 
 def png(size, pixels):
@@ -112,10 +109,6 @@ def ico(images):
         entries += struct.pack("<BBBBHHII", size % 256, size % 256, 0, 0, 1, 32, len(payload), offset + len(data))
         data += payload
     return head + entries + data
-
-
-def tile(size, scale=0.78):
-    return raster(size, GRAPHITE, scale)
 
 
 # ── cards: type needs a real browser, so these go through headless chromium ──
@@ -151,10 +144,12 @@ def main():
     (pub / "mark.svg").write_text(
         '<svg xmlns="http://www.w3.org/2000/svg" width="0" height="0" style="position:absolute" aria-hidden="true">'
         f'<symbol id="mark" viewBox="0 0 48 48">{symbol}</symbol></svg>\n')
-    favicon = svg_body('class="b"', f'fill="{OXIDE}"')
+    # Light tab bars get graphite with the darker light-theme oxide, so the small tip still reads at 16 px.
+    favicon = svg_body('class="b"', 'class="t"')
     (pub / "favicon.svg").write_text(
         '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">'
-        f"<style>.b{{fill:{GRAPHITE}}}@media (prefers-color-scheme:dark){{.b{{fill:{MARBLE}}}}}</style>"
+        f"<style>.b{{fill:{GRAPHITE}}}.t{{fill:{OXIDE_ON_LIGHT}}}"
+        f"@media (prefers-color-scheme:dark){{.b{{fill:{MARBLE}}}.t{{fill:{OXIDE}}}}}</style>"
         f"{favicon}</svg>\n")
     (pub / "favicon.ico").write_bytes(ico([(s, png(s, tile(s, 0.9))) for s in (16, 32, 48)]))
     (pub / "apple-touch-icon.png").write_bytes(png(180, tile(180)))
@@ -164,11 +159,14 @@ def main():
         og_card(theme, docs / f"og-{theme}.png")
 
 
-# The tip must come out oxide and the corners stay background, or the raster is wrong.
-_check = raster(48, GRAPHITE, 1)
-_tip = [sum(c) / 3 for c in zip(*TRIS[3])]
-assert _check[int(_tip[1]) * 48 + int(_tip[0])][:3] == list(hex_rgb(OXIDE)), "tip is not oxide"
-assert _check[0][:3] == list(hex_rgb(GRAPHITE)), "corner is not background"
+def check_raster():
+    """The tip must come out oxide and a corner stay graphite, or the rasteriser is wrong."""
+    pixels = tile(48, 1)
+    cx, cy = (sum(c) / 3 for c in zip(*TRIS[-1]))
+    assert pixels[int(cy) * 48 + int(cx)][:3] == list(hex_rgb(OXIDE)), "tip is not oxide"
+    assert pixels[0][:3] == list(hex_rgb(GRAPHITE)), "corner is not graphite"
+
 
 if __name__ == "__main__":
+    check_raster()
     main()
