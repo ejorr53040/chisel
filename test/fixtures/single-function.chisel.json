@@ -1,16 +1,8 @@
 {
-  "version": 1,
+  "version": 2,
   "name": "auth-demo",
   "blocks": [
-    {
-      "id": "f_login",
-      "kind": "function",
-      "name": "login",
-      "position": { "x": 120, "y": 80 },
-      "signature": "(email, password) -> User",
-      "intent": "Validates credentials and returns the user, or raises AuthError.",
-      "steps": ["look up the user by email", "compare the password hash"]
-    }
+    { "id": "f_login", "kind": "function", "name": "login", "position": { "x": 120, "y": 80 }, "intent": "Validates credentials and returns the user, or raises AuthError.", "steps": ["look up the user by email", "compare the password hash"], "inputs": [{ "name": "email", "type": "" }, { "name": "password", "type": "" }], "returns": "User", "errors": [] }
   ],
   "edges": []
 }

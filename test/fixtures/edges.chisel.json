@@ -1,10 +1,10 @@
 {
-  "version": 1,
+  "version": 2,
   "name": "accounts",
   "blocks": [
     { "id": "m_app", "kind": "module", "name": "app", "position": { "x": 0, "y": 0 } },
-    { "id": "f_main", "kind": "function", "name": "main", "parentId": "m_app", "position": { "x": 0, "y": 0 }, "signature": "", "intent": "Starts the app.", "steps": [] },
-    { "id": "f_login", "kind": "function", "name": "login", "parentId": "m_app", "position": { "x": 0, "y": 0 }, "signature": "(email) -> User", "intent": "Logs in.", "steps": [] },
+    { "id": "f_main", "kind": "function", "name": "main", "parentId": "m_app", "position": { "x": 0, "y": 0 }, "intent": "Starts the app.", "steps": [], "inputs": [], "returns": "", "errors": [] },
+    { "id": "f_login", "kind": "function", "name": "login", "parentId": "m_app", "position": { "x": 0, "y": 0 }, "intent": "Logs in.", "steps": [], "inputs": [{ "name": "email", "type": "" }], "returns": "User", "errors": [] },
     { "id": "c_user", "kind": "class", "name": "User", "parentId": "m_app", "position": { "x": 0, "y": 0 } },
     { "id": "c_admin", "kind": "class", "name": "Admin", "parentId": "m_app", "position": { "x": 0, "y": 0 } },
     { "id": "i_store", "kind": "interface", "name": "Store", "parentId": "m_app", "position": { "x": 0, "y": 0 } },

@@ -1,16 +1,16 @@
 {
-  "version": 1,
+  "version": 2,
   "name": "shop",
   "blocks": [
     { "id": "m_main", "kind": "module", "name": "main", "position": { "x": 0, "y": 0 }, "size": { "width": 328, "height": 212 }, "source": { "id": "main", "path": "main.ts", "line": 1 } },
-    { "id": "f_main.main", "kind": "function", "name": "main", "parentId": "m_main", "position": { "x": 24, "y": 48 }, "signature": "(): void", "intent": "Starts the shop.", "steps": [], "source": { "id": "main.main", "path": "main.ts", "line": 3 } },
+    { "id": "f_main.main", "kind": "function", "name": "main", "parentId": "m_main", "position": { "x": 24, "y": 48 }, "inputs": [], "returns": "void", "errors": [], "intent": "Starts the shop.", "steps": [], "source": { "id": "main.main", "path": "main.ts", "line": 3 } },
     { "id": "m_src_", "kind": "module", "name": "src", "position": { "x": 352, "y": 0 }, "size": { "width": 1080, "height": 356 }, "source": { "id": "src/", "path": "src", "line": 0 } },
     { "id": "m_src.cart", "kind": "module", "name": "cart", "parentId": "m_src_", "position": { "x": 24, "y": 48 }, "size": { "width": 632, "height": 212 }, "source": { "id": "src.cart", "path": "src/cart.ts", "line": 1 } },
-    { "id": "f_src.cart.addItem", "kind": "function", "name": "addItem", "parentId": "m_src.cart", "position": { "x": 24, "y": 48 }, "signature": "(cart: Cart, sku: string): Cart", "intent": "Adds an item to the cart.", "steps": [], "source": { "id": "src.cart.addItem", "path": "src/cart.ts", "line": 4 } },
-    { "id": "f_src.cart.total", "kind": "function", "name": "total", "parentId": "m_src.cart", "position": { "x": 328, "y": 48 }, "signature": "(cart: Cart): number", "intent": "", "steps": [], "source": { "id": "src.cart.total", "path": "src/cart.ts", "line": 10 }, "importWarnings": [{ "kind": "no-intent", "message": "No doc comment: write an intent." }] },
+    { "id": "f_src.cart.addItem", "kind": "function", "name": "addItem", "parentId": "m_src.cart", "position": { "x": 24, "y": 48 }, "inputs": [{ "name": "cart", "type": "Cart" }, { "name": "sku", "type": "string" }], "returns": "Cart", "errors": [], "intent": "Adds an item to the cart.", "steps": [], "source": { "id": "src.cart.addItem", "path": "src/cart.ts", "line": 4 } },
+    { "id": "f_src.cart.total", "kind": "function", "name": "total", "parentId": "m_src.cart", "position": { "x": 328, "y": 48 }, "inputs": [{ "name": "cart", "type": "Cart" }], "returns": "number", "errors": [], "intent": "", "steps": [], "source": { "id": "src.cart.total", "path": "src/cart.ts", "line": 10 }, "importWarnings": [{ "kind": "no-intent", "message": "No doc comment: write an intent." }] },
     { "id": "m_src_util_", "kind": "module", "name": "util", "parentId": "m_src_", "position": { "x": 680, "y": 48 }, "size": { "width": 376, "height": 284 }, "source": { "id": "src/util/", "path": "src/util", "line": 0 } },
     { "id": "m_src.util.money", "kind": "module", "name": "money", "parentId": "m_src_util_", "position": { "x": 24, "y": 48 }, "size": { "width": 328, "height": 212 }, "source": { "id": "src.util.money", "path": "src/util/money.ts", "line": 1 } },
-    { "id": "f_src.util.money.format", "kind": "function", "name": "format", "parentId": "m_src.util.money", "position": { "x": 24, "y": 48 }, "signature": "(cents: number): string", "intent": "Formats cents as dollars.", "steps": [], "source": { "id": "src.util.money.format", "path": "src/util/money.ts", "line": 2 } }
+    { "id": "f_src.util.money.format", "kind": "function", "name": "format", "parentId": "m_src.util.money", "position": { "x": 24, "y": 48 }, "inputs": [{ "name": "cents", "type": "number" }], "returns": "string", "errors": [], "intent": "Formats cents as dollars.", "steps": [], "source": { "id": "src.util.money.format", "path": "src/util/money.ts", "line": 2 } }
   ],
   "edges": [],
   "unindexed": ["vendor/legacy.js"]

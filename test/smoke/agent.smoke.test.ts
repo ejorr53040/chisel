@@ -10,20 +10,20 @@ import { generate, runChecks } from "../../src/generate";
 import { claudeRunner } from "../../src/claude";
 
 const board: Board = {
-  version: 1,
+  version: 2,
   name: "greeter",
   edges: [{ id: "e_calls", source: "f_bump", target: "f_greeting", kind: "calls" }],
   blocks: [
     { id: "m_greet", kind: "module", name: "greet", position: { x: 0, y: 0 } },
     {
       id: "f_greeting", kind: "function", name: "greeting", parentId: "m_greet", position: { x: 0, y: 0 },
-      signature: "(name: str) -> str", intent: "Returns 'Hello, <name>!'.", steps: [],
+      inputs: [{ name: "name", type: "str" }], returns: "str", errors: [], intent: "Returns 'Hello, <name>!'.", steps: [],
     },
     { id: "c_counter", kind: "class", name: "Counter", parentId: "m_greet", position: { x: 0, y: 0 } },
     { id: "x_count", kind: "field", name: "count", parentId: "c_counter", position: { x: 0, y: 0 }, type: "int" },
     {
       id: "f_bump", kind: "function", name: "bump", parentId: "c_counter", position: { x: 0, y: 0 },
-      signature: "-> int", intent: "Adds one to count, prints greeting(str(count)), and returns count.", steps: [],
+      inputs: [], returns: "int", errors: [], intent: "Adds one to count, prints greeting(str(count)), and returns count.", steps: [],
     },
     { id: "t_mood", kind: "type", name: "Mood", parentId: "m_greet", position: { x: 0, y: 0 }, shape: "enum", members: ["happy", "sad"] },
     { id: "k_max", kind: "constant", name: "MAX_NAME", parentId: "m_greet", position: { x: 0, y: 0 }, type: "int", value: "40" },

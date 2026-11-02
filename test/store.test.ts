@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Board } from "../src/board";
 import { loadBoard, saveBoard } from "../src/store";
+import { serialize } from "../src/serialize";
 
 const fixture = (name: string): Board =>
   JSON.parse(readFileSync(new URL(`fixtures/${name}.chisel.json`, import.meta.url), "utf8"));
@@ -157,5 +158,77 @@ describe("board file store", () => {
     const path = join(tmp(), "bad.chisel.json");
     writeFileSync(path, contents);
     expect(() => loadBoard(path)).toThrow(message);
+  });
+});
+
+describe("version 1 boards migrate to version 2 on load", () => {
+  const v1 = (signature: string) =>
+    JSON.stringify({
+      version: 1,
+      name: "shop",
+      blocks: [
+        { id: "m", kind: "module", name: "shop", position: { x: 10, y: 20 } },
+        { id: "f", kind: "function", name: "total", parentId: "m", position: { x: 30, y: 40 }, signature, intent: "Sums.", steps: [] },
+      ],
+      edges: [],
+    });
+  const load = (signature: string) => {
+    const path = join(tmp(), "old.chisel.json");
+    writeFileSync(path, v1(signature));
+    return loadBoard(path);
+  };
+  const fn = (b: Board) => b.blocks.find((x) => x.kind === "function") as Extract<Board["blocks"][number], { kind: "function" }>;
+
+  it.each([
+    ["(items: List<Item>, tax: Rate) -> Money", [{ name: "items", type: "List<Item>" }, { name: "tax", type: "Rate" }], "Money"],
+    ["(email, password) -> User", [{ name: "email", type: "" }, { name: "password", type: "" }], "User"],
+    ["email, password -> User", [{ name: "email", type: "" }, { name: "password", type: "" }], "User"],
+    ["(cart: Cart, sku: string): Cart", [{ name: "cart", type: "Cart" }, { name: "sku", type: "string" }], "Cart"],
+    ["(m: Map<K, V>, f: (a: A) -> B) -> Result<V, E>", [{ name: "m", type: "Map<K, V>" }, { name: "f", type: "(a: A) -> B" }], "Result<V, E>"],
+    ["(verify?, &self)", [{ name: "verify?", type: "" }, { name: "&self", type: "" }], ""],
+    ["-> Config", [], "Config"],
+    ["token", [{ name: "token", type: "" }], ""],
+    ["", [], ""],
+    ["()", [], ""],
+  ])("parses %j into inputs and a return", (signature, inputs, returns) => {
+    const b = load(signature);
+    expect(b.version).toBe(2);
+    expect(fn(b)).toMatchObject({ inputs, returns, errors: [] });
+    expect(fn(b)).not.toHaveProperty("signature");
+    expect(fn(b).importWarnings).toBeUndefined();
+  });
+
+  it("keeps a parameter list it cannot split as one input, with a warning badge", () => {
+    const b = load("({ arch, lang }, parent kind) -> GenerateResult");
+    expect(fn(b).inputs).toEqual([{ name: "{ arch, lang }, parent kind", type: "" }]);
+    expect(fn(b).returns).toBe("GenerateResult");
+    expect(fn(b).importWarnings).toEqual([{ kind: "loose-signature", message: expect.stringContaining("parameter") }]);
+  });
+
+  it("pins every block where it was, so an old board opens unchanged", () => {
+    const b = load("()");
+    expect(b.blocks.map((x) => [x.id, x.pinned, x.position])).toEqual([
+      ["m", true, { x: 10, y: 20 }],
+      ["f", true, { x: 30, y: 40 }],
+    ]);
+  });
+
+  it("saves the migrated board as version 2 and loads it back unchanged", () => {
+    const path = join(tmp(), "shop.chisel.json");
+    const migrated = load("(a: A) -> B");
+    saveBoard(path, migrated);
+    expect(JSON.parse(readFileSync(path, "utf8")).version).toBe(2);
+    expect(loadBoard(path)).toEqual(migrated);
+  });
+
+  it("rejects a pinned flag that is not a boolean", () => {
+    const path = join(tmp(), "bad.chisel.json");
+    writeFileSync(path, JSON.stringify({ version: 2, name: "x", blocks: [{ id: "a", kind: "module", name: "a", position: { x: 0, y: 0 }, pinned: "yes" }], edges: [] }));
+    expect(() => loadBoard(path)).toThrow(/pinned/);
+  });
+
+  it("migrates Chisel's own board without changing its architecture file", () => {
+    const own = new URL("../chisel.chisel.json", import.meta.url).pathname;
+    expect(serialize(loadBoard(own)).arch).toBe(readFileSync(new URL("../chisel.arch.md", import.meta.url), "utf8"));
   });
 });

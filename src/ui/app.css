@@ -71,3 +71,8 @@ kbd { font-family: var(--font-mono); font-size: var(--t-xs); color: var(--dim); 
   --xy-edge-label-color: var(--text);
   --xy-resize-background-color: var(--accent);
 }
+
+.inputs { border: 0; padding: 0; margin: 0; gap: var(--s2); }
+.inputs legend { font-size: var(--t-xs); color: var(--dim); padding: 0; margin-bottom: var(--s2); }
+.input-row { display: grid; grid-template-columns: 1fr 1fr auto auto auto; gap: var(--s2); align-items: center; }
+.inputs > .btn { align-self: start; }

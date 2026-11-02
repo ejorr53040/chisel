@@ -20,6 +20,15 @@ try {
   await page.getByRole("button", { name: "+ Function" }).click();
   await page.getByLabel("Name", { exact: true }).fill("login");
   await page.getByLabel("Intent").fill("Checks the password.");
+  // Inputs are rows of name and type that can be added and reordered; returns and errors are their own fields.
+  await page.getByRole("button", { name: "+ Input" }).click();
+  await page.getByLabel("Input 1 name").fill("email");
+  await page.getByLabel("Input 1 type").fill("str");
+  await page.getByRole("button", { name: "+ Input" }).click();
+  await page.getByLabel("Input 2 name").fill("password");
+  await page.getByRole("button", { name: "Move input 2 up" }).click();
+  await page.getByLabel("Returns").fill("User");
+  await page.getByLabel("Errors, one type per line").fill("AuthError");
 
   // Nudge the function so drag-stop runs; it lands inside the module and gets nested.
   const fn = await page.locator(".react-flow__node-function").first().boundingBox();
@@ -38,7 +47,11 @@ try {
   await page.mouse.up();
 
   const arch = await preview.textContent();
-  assert.match(arch, /^module auth {2}@id m_\w+\n {2}fn login\(\) {2}@id f_\w+\n {4}intent: Checks the password\.\n {2}module tokens {2}@id m_\w+$/m, arch);
+  assert.match(
+    arch,
+    /^module auth {2}@id m_\w+\n {2}fn login\(password, email: str\) -> User {2}@id f_\w+\n {4}intent: Checks the password\.\n {4}errors:\n {6}- AuthError\n {2}module tokens {2}@id m_\w+$/m,
+    arch,
+  );
 
   const path = join(mkdtempSync(join(tmpdir(), "chisel-smoke-")), "smoke.chisel.json");
   await page.getByLabel("Board file path").fill(path);

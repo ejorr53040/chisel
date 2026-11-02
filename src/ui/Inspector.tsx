@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { EDGE_KINDS, LANGS, TRIGGERS, type Block, type Edge, type Lang, type Target } from "../board";
+import { EDGE_KINDS, LANGS, TRIGGERS, type Block, type Edge, type Lang, type Param, type Target } from "../board";
 
 type Patch = Partial<Block>;
 
@@ -33,6 +33,39 @@ function Choice<T extends string>({ id, label, value, options, onChange }: { id:
 
 const LANG_LABELS: Record<Lang, string> = { python: "Python", rust: "Rust", cpp: "C++", typescript: "TypeScript" };
 
+// A function's inputs as name / type rows that can be added, removed and reordered.
+function Inputs({ inputs, onChange }: { inputs: Param[]; onChange: (inputs: Param[]) => void }) {
+  const set = (i: number, patch: Partial<Param>) => onChange(inputs.map((p, j) => (j === i ? { ...p, ...patch } : p)));
+  const move = (i: number, by: number) => {
+    const next = [...inputs];
+    [next[i], next[i + by]] = [next[i + by], next[i]];
+    onChange(next);
+  };
+  return (
+    <fieldset className="field inputs">
+      <legend>Inputs</legend>
+      {inputs.map((p, i) => (
+        <div key={i} className="input-row">
+          <input className="mono" aria-label={`Input ${i + 1} name`} placeholder="name" value={p.name} onChange={(e) => set(i, { name: e.target.value })} />
+          <input className="mono" aria-label={`Input ${i + 1} type`} placeholder="type" value={p.type} onChange={(e) => set(i, { type: e.target.value })} />
+          <button className="btn btn--sm btn--link" aria-label={`Move input ${i + 1} up`} disabled={i === 0} onClick={() => move(i, -1)}>
+            ↑
+          </button>
+          <button className="btn btn--sm btn--link" aria-label={`Move input ${i + 1} down`} disabled={i === inputs.length - 1} onClick={() => move(i, 1)}>
+            ↓
+          </button>
+          <button className="btn btn--sm btn--link" aria-label={`Remove input ${i + 1}`} onClick={() => onChange(inputs.filter((_, j) => j !== i))}>
+            ✕
+          </button>
+        </div>
+      ))}
+      <button className="btn btn--sm" onClick={() => onChange([...inputs, { name: "", type: "" }])}>
+        + Input
+      </button>
+    </fieldset>
+  );
+}
+
 export function Inspector({ block, onChange }: { block: Block; onChange: (patch: Patch) => void }) {
   const lines = (v: string) => v.split("\n");
   return (
@@ -40,7 +73,9 @@ export function Inspector({ block, onChange }: { block: Block; onChange: (patch:
       <Text id="f-name" label="Name" code value={block.name} onChange={(name) => onChange({ name })} />
       {block.kind === "function" && (
         <>
-          <Text id="f-sig" label="Signature" code value={block.signature} onChange={(signature) => onChange({ signature })} />
+          <Inputs inputs={block.inputs} onChange={(inputs) => onChange({ inputs })} />
+          <Text id="f-returns" label="Returns" code value={block.returns} onChange={(returns) => onChange({ returns })} />
+          <Text id="f-errors" label="Errors, one type per line" code rows={2} value={block.errors.join("\n")} onChange={(v) => onChange({ errors: lines(v) })} />
           <Text id="f-intent" label="Intent" rows={2} value={block.intent} onChange={(intent) => onChange({ intent })} />
           <Text id="f-steps" label="Steps, one per line" rows={4} value={block.steps.join("\n")} onChange={(v) => onChange({ steps: lines(v) })} />
         </>

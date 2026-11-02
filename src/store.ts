@@ -1,18 +1,20 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
-import { BLOCK_KINDS, EDGE_KINDS, IMPORT_WARNING_KINDS, LANGS, TRIGGERS, canContain, type Block, type Board, type Kind, type Lang } from "./board";
+import { BLOCK_KINDS, EDGE_KINDS, IMPORT_WARNING_KINDS, LANGS, TRIGGERS, canContain, parseSignature, type Block, type Board, type Kind, type Lang } from "./board";
 import { DEFAULT_MODULE, serialize } from "./serialize";
 
 const KINDS = new Set<string>(BLOCK_KINDS);
 
 const isText = (v: unknown) => typeof v === "string";
 const isTextList = (v: unknown) => Array.isArray(v) && v.every(isText);
+const isParamList = (v: unknown) =>
+  Array.isArray(v) && v.every((p) => typeof p === "object" && p !== null && isText(p.name) && isText(p.type));
 // The kind-specific fields each block must carry, with their check.
 const FIELDS: Record<Kind, [string, (v: unknown) => boolean][]> = {
   module: [],
   class: [],
   interface: [],
-  function: [["signature", isText], ["intent", isText], ["steps", isTextList]],
+  function: [["inputs", isParamList], ["returns", isText], ["errors", isTextList], ["intent", isText], ["steps", isTextList]],
   field: [["type", isText]],
   constant: [["type", isText], ["value", isText]],
   type: [["shape", (v) => v === "struct" || v === "enum"], ["members", isTextList]],
@@ -45,14 +47,30 @@ export function loadBoard(path: string): Board {
   return validate(data);
 }
 
+// Version 1 stored a function's signature as loose text. Version 2 splits it into inputs, a return and errors,
+// and pins every block, so an old board opens exactly where its blocks were.
+function migrateV1(old: { version: 1; blocks: unknown }): unknown {
+  if (!Array.isArray(old.blocks)) return { ...old, version: 2 };
+  const blocks = old.blocks.map((x) => {
+    if (typeof x !== "object" || x === null) return x;
+    if (x.kind !== "function" || typeof x.signature !== "string") return { ...x, pinned: true };
+    const { signature, ...rest } = x;
+    const { inputs, returns, loose } = parseSignature(signature);
+    const warning = { kind: "loose-signature", message: "The parameter list didn't split into names and types: check the inputs." };
+    return { ...rest, inputs, returns, errors: [], pinned: true, ...(loose && { importWarnings: [...(x.importWarnings ?? []), warning] }) };
+  });
+  return { ...old, version: 2, blocks };
+}
+
 // Board files are hand-editable, so check everything the serializer and UI rely on.
 export function validate(data: unknown): Board {
   const fail = (msg: string): never => {
     throw new Error(`invalid board file: ${msg}`);
   };
+  if ((data as { version?: unknown })?.version === 1) data = migrateV1(data as { version: 1; blocks: unknown });
   const b = data as Board;
   if (typeof b !== "object" || b === null) fail("expected an object");
-  if (b.version !== 1) fail(`unsupported version ${JSON.stringify(b.version)} (expected 1)`);
+  if (b.version !== 2) fail(`unsupported version ${JSON.stringify(b.version)} (expected 1 or 2)`);
   if (typeof b.name !== "string") fail("missing board name");
   if (!Array.isArray(b.blocks)) fail("missing blocks array");
   if (!Array.isArray(b.edges)) fail("missing edges array");
@@ -68,6 +86,7 @@ export function validate(data: unknown): Board {
     const missing = FIELDS[x.kind].filter(([key, ok]) => !ok((x as unknown as Record<string, unknown>)[key])).map(([key]) => key);
     if (missing.length) fail(`${x.kind} ${x.id} needs ${missing.join(", ")}`);
     if (x.notes !== undefined && !isText(x.notes)) fail(`block ${x.id} has notes that are not text`);
+    if (x.pinned !== undefined && typeof x.pinned !== "boolean") fail(`block ${x.id} has a pinned flag that is not true or false`);
     const src = x.source;
     if (src !== undefined && !(typeof src === "object" && src !== null && isText(src.id) && isText(src.path) && Number.isInteger(src.line)))
       fail(`block ${x.id} needs a source with an id, a path and a line`);

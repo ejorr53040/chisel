@@ -196,7 +196,7 @@ export function App() {
     setRun(null);
     setStatus(null);
     resetHistory();
-    show({ version: 1, name: "untitled", blocks: [], edges: [] });
+    show({ version: 2, name: "untitled", blocks: [], edges: [] });
     // Always a fresh file name, so the next Save can't overwrite the board that was open.
     setPath(path.slice(0, path.lastIndexOf("/") + 1) + "untitled.chisel.json");
   };

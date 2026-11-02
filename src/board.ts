@@ -11,6 +11,7 @@ interface BlockBase {
   notes?: string;
   source?: Source; // only on imported blocks
   importWarnings?: ImportWarning[];
+  pinned?: boolean; // the user placed it; layout keeps it where it is
 }
 
 // Where an imported block's code lives: tesselate's qualified id, its file, and its line (0 for a folder).
@@ -20,8 +21,8 @@ export interface Source {
   line: number;
 }
 
-// Something import could not be sure of, shown as an amber badge until the next import replaces it.
-export const IMPORT_WARNING_KINDS = ["no-intent"] as const;
+// Something import or migration could not be sure of, shown as an amber badge until the next import replaces it.
+export const IMPORT_WARNING_KINDS = ["no-intent", "loose-signature"] as const;
 export interface ImportWarning {
   kind: (typeof IMPORT_WARNING_KINDS)[number];
   message: string;
@@ -31,11 +32,72 @@ export interface ModuleBlock extends BlockBase {
   kind: "module";
 }
 
+// A function input; the type is free text in any language's style, empty when unknown.
+export interface Param {
+  name: string;
+  type: string;
+}
+
 export interface FunctionBlock extends BlockBase {
   kind: "function";
-  signature: string; // loose, e.g. "(email, password) -> User"
+  inputs: Param[];
+  returns: string; // empty for none
+  errors: string[]; // error types it can fail with
   intent: string;
   steps: string[];
+}
+
+// Brackets that nest in a signature; "->" is skipped so its ">" never closes one.
+const OPEN = "([{<";
+const CLOSE = ")]}>";
+
+// Splits text on sep where no bracket is open.
+function splitTop(text: string, sep: string): string[] {
+  const parts: string[] = [];
+  let depth = 0;
+  let start = 0;
+  for (let i = 0; i < text.length; i++) {
+    if (depth === 0 && text.startsWith(sep, i)) {
+      parts.push(text.slice(start, i));
+      start = i + sep.length;
+      i += sep.length - 1;
+    } else if (text.startsWith("->", i)) i++;
+    else if (OPEN.includes(text[i])) depth++;
+    else if (CLOSE.includes(text[i])) depth = Math.max(0, depth - 1);
+  }
+  return [...parts, text.slice(start)];
+}
+
+const PARAM_NAME = /^(\.\.\.|[&*]+)?[A-Za-z_$][\w$]*\??$/;
+
+// A loose signature ("(a: A, b) -> R", "a, b -> R", TypeScript's "(a: A): R") as structured inputs and a return.
+// A parameter list that doesn't split into name or name: type is kept whole as one input, and loose is set.
+export function parseSignature(text: string): { inputs: Param[]; returns: string; loose: boolean } {
+  let sig = text.trim();
+  let params = "";
+  if (sig.startsWith("(")) {
+    let depth = 0;
+    let end = 0;
+    for (; end < sig.length; end++) {
+      if (sig.startsWith("->", end)) end++;
+      else if (OPEN.includes(sig[end])) depth++;
+      else if (CLOSE.includes(sig[end]) && --depth === 0) break;
+    }
+    params = sig.slice(1, end);
+    sig = sig.slice(end + 1).trim().replace(/^(->|:)/, "");
+  } else {
+    const [head, ...rest] = splitTop(sig, "->");
+    params = head;
+    sig = rest.join("->");
+  }
+  const returns = sig.trim();
+  if (!params.trim()) return { inputs: [], returns, loose: false };
+  const inputs = splitTop(params, ",").map((p) => {
+    const [name, ...type] = splitTop(p.trim(), ":");
+    return { name: name.trim(), type: type.join(":").trim() };
+  });
+  if (inputs.every((p) => PARAM_NAME.test(p.name))) return { inputs, returns, loose: false };
+  return { inputs: [{ name: params.trim(), type: "" }], returns, loose: true };
 }
 
 export interface ClassBlock extends BlockBase {
@@ -122,7 +184,7 @@ export function newBlock(kind: Kind, position: { x: number; y: number }): Block 
   const base = { id: newId(kind[0]), name: kind === "module" ? "module" : `new ${kind}`, position };
   switch (kind) {
     case "function":
-      return { ...base, kind, name: "function", signature: "()", intent: "", steps: [] };
+      return { ...base, kind, name: "function", inputs: [], returns: "", errors: [], intent: "", steps: [] };
     case "field":
       return { ...base, kind, name: "field", type: "" };
     case "constant":
@@ -164,7 +226,7 @@ export interface Target {
 }
 
 export interface Board {
-  version: 1;
+  version: 2;
   name: string;
   blocks: Block[];
   edges: Edge[];
