@@ -59,7 +59,7 @@ pre { background: var(--inset); padding: var(--s4); border-radius: var(--r-card)
 /* wordmark: lowercase chisel in Geist 600, tight */
 .logo { display: inline-flex; align-items: center; gap: var(--s3); color: var(--text); text-decoration: none;
         font-family: var(--font-ui); font-weight: 600; font-size: var(--t-md); letter-spacing: -0.03em; }
-.logo svg { width: 22px; height: 22px; }
+.logo svg { width: 26px; height: 26px; }
 
 /* forms */
 .field { display: flex; flex-direction: column; gap: var(--s2); }

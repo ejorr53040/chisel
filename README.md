@@ -41,6 +41,8 @@ Open `chisel.chisel.json`, edit blocks, press **Update repo**, review the branch
 
 Generate runs Claude Code on your machine with the board's text as instructions. The agent can only edit files in the run folder and run the target's verifier commands, and the API refuses requests from any page but this app's own. But verifiers execute project code (build scripts, mypy plugins), so only generate boards you trust, as you would only run code you trust.
 
-## Brand images
+## Brand
 
-The mark is the ejorr cube with its near corner chiselled off. `python3 scripts/brand.py` regenerates the favicon set in `public/` and the cards in `docs/` (needs the ejorr brand skill and chromium); the `#mark` symbols in `public/blueprint.svg` hold the same path.
+The mark is the Sickle: four flat triangles along one arc, shrinking from a thick base to an oxide tip. The wordmark is a lowercase `chisel` in Geist 600; code is set in JetBrains Mono. Colours, by how much of the interface they cover: graphite, slate, marble, with oxide as the one accent. Every token lives in `src/ui/brand/tokens.css`.
+
+The Sickle's geometry is defined once, in `scripts/brand.py`. `python3 scripts/brand.py` regenerates the `#mark` symbol in `public/mark.svg`, the favicon set in `public/` and the cards in `docs/` (the cards need chromium, or `CHROMIUM=…`, and `npm install` for the bundled fonts). The old ejorr blueprint library is gone; `mark.svg` holds the only symbol the app draws.
